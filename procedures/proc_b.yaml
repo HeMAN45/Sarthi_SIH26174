@@ -1,0 +1,166 @@
+# PROC-B — Dual-sample cross-transfer
+#
+# The live-load demo (differentiator D-02). Same object vocabulary as PROC-A, so
+# loading this requires NO retraining. Exercises three things PROC-A does not:
+# an order-independent group (g1), a dwell verification hold (s7), and a
+# multi-condition close (s9). See docs/02-TRD.md appendix A.4.
+
+procedure:
+  id: dual_sample_cross_transfer
+  name: Dual-sample cross-transfer
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: orbital-v1
+
+markers: [R, Y]
+
+objects:
+  - id: outer_box
+    classes: [outer_box_closed, outer_box_open]
+  - id: red_box
+    classes: [red_box_closed, red_box_open]
+    tether_required: true
+  - id: yellow_box
+    classes: [yellow_box_closed, yellow_box_open]
+    tether_required: true
+  - id: sample_vial
+    classes: [sample_vial]
+    tether_required: true
+  - id: tweezers
+    classes: [tweezers]
+  - id: tether_clip
+    classes: [tether_clip]
+
+regions:
+  # Narrow central band: an object stowed on the rack or resting on a marker
+  # must fall OUTSIDE this, or the dwell verification would pass trivially.
+  - id: camera_verify
+    rect: [0.44, 0.40, 0.56, 0.60]
+
+groups:
+  - id: g1
+    members: [s4, s5]
+
+steps:
+  - id: s1
+    name: Open the outer container
+    voice: "Open the outer container."
+    preconditions: []
+    requires:
+      - detect: outer_box_open
+        hold_frames: 12
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s2
+    name: Remove the yellow box and place it on marker Y
+    voice: "Remove the yellow box and place it on marker Y."
+    preconditions: [s1]
+    requires:
+      - contact: [hand, yellow_box]
+        latch: true
+      - near: yellow_box
+        to: Y
+        max_mm: 120
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s3
+    name: Remove the red box and place it on marker R
+    voice: "Remove the red box and place it on marker R."
+    preconditions: [s2]
+    requires:
+      - contact: [hand, red_box]
+        latch: true
+      - near: red_box
+        to: R
+        max_mm: 120
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s4
+    name: Open the yellow box
+    voice: "Open the yellow box."
+    preconditions: [s3]
+    group: g1
+    requires:
+      - detect: yellow_box_open
+        hold_frames: 12
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s5
+    name: Open the red box
+    voice: "Open the red box."
+    preconditions: [s3]
+    group: g1
+    requires:
+      - detect: red_box_open
+        hold_frames: 12
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s6
+    name: Transfer the vial from the red box to the yellow box
+    voice: "Using the tweezers, transfer the vial from the red box to the yellow box."
+    preconditions: [s4, s5]
+    requires:
+      - contact: [tweezers, sample_vial]
+        latch: true
+      - near: sample_vial
+        to: yellow_box
+        max_mm: 90
+    timeout_s: 120
+    on_timeout: stall
+
+  - id: s7
+    name: Hold the vial to the camera for verification
+    voice: "Hold the vial up to the camera for verification."
+    preconditions: [s6]
+    requires:
+      - dwell: sample_vial
+        region: camera_verify
+        seconds: 2.0
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s8
+    name: Return the vial to the red box
+    voice: "Return the vial to the red box."
+    preconditions: [s7]
+    requires:
+      - contact: [tweezers, sample_vial]
+        latch: true
+      - near: sample_vial
+        to: red_box
+        max_mm: 90
+    timeout_s: 120
+    on_timeout: stall
+
+  - id: s9
+    name: Close both boxes
+    voice: "Close both boxes."
+    preconditions: [s8]
+    requires:
+      - detect: red_box_closed
+        hold_frames: 12
+      - detect: yellow_box_closed
+        hold_frames: 12
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s10
+    name: Return both boxes to the container and close it
+    voice: "Return both boxes to the container and close it."
+    preconditions: [s9]
+    requires:
+      - near: red_box
+        to: outer_box
+        max_mm: 150
+      - near: yellow_box
+        to: outer_box
+        max_mm: 150
+      - detect: outer_box_closed
+        hold_frames: 12
+    timeout_s: 120
+    on_timeout: stall

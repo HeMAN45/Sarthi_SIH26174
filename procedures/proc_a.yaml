@@ -1,0 +1,108 @@
+# PROC-A — Nested sample retrieval
+# The build target. Six steps, linear. See docs/02-TRD.md appendix A.3.
+#
+# Predicates omit min_conf on purpose: the default is a detection floor, and
+# whether evidence is strong enough to act on is the engine's decision via
+# tau_complete / tau_abstain. Do not raise min_conf above tau_abstain.
+
+procedure:
+  id: nested_box_sample
+  name: Nested sample retrieval
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: orbital-v1
+
+# Rack fiducials this procedure refers to by name.
+markers: [R, Y]
+
+objects:
+  - id: outer_box
+    classes: [outer_box_closed, outer_box_open]
+  - id: red_box
+    classes: [red_box_closed, red_box_open]
+    tether_required: true
+  - id: yellow_box
+    classes: [yellow_box_closed, yellow_box_open]
+    tether_required: true
+  - id: sample_vial
+    classes: [sample_vial]
+    tether_required: true
+  - id: tweezers
+    classes: [tweezers]
+  - id: tether_clip
+    classes: [tether_clip]
+
+regions: []
+
+steps:
+  - id: s1
+    name: Open the outer container
+    voice: "Open the outer container."
+    preconditions: []
+    requires:
+      - detect: outer_box_open
+        hold_frames: 12
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s2
+    name: Remove the red box and place it on marker R
+    voice: "Remove the red box and place it on marker R."
+    preconditions: [s1]
+    requires:
+      - contact: [hand, red_box]
+        latch: true
+      - near: red_box
+        to: R
+        max_mm: 120
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s3
+    name: Remove the yellow box and place it on marker Y
+    voice: "Remove the yellow box and place it on marker Y."
+    preconditions: [s2]
+    requires:
+      - contact: [hand, yellow_box]
+        latch: true
+      - near: yellow_box
+        to: Y
+        max_mm: 120
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s4
+    name: Open the red box
+    voice: "Open the red box."
+    preconditions: [s3]
+    requires:
+      - detect: red_box_open
+        hold_frames: 12
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s5
+    name: Transfer the vial to the yellow box using tweezers
+    voice: "Using the tweezers, transfer the vial to the yellow box."
+    preconditions: [s4]
+    requires:
+      - contact: [tweezers, sample_vial]
+        latch: true
+      - near: sample_vial
+        to: yellow_box
+        max_mm: 90
+    timeout_s: 120
+    on_timeout: stall
+
+  - id: s6
+    name: Close the red box and secure it to the rack
+    voice: "Close the red box and secure it to the rack."
+    preconditions: [s5]
+    requires:
+      - detect: red_box_closed
+        hold_frames: 12
+      - near: tether_clip
+        to: red_box
+        max_mm: 100
+    timeout_s: 90
+    on_timeout: stall

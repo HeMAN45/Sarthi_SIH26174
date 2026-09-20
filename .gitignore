@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Runtime data — sessions are large; keep tagged fixtures only
+data/
+!data/.gitkeep
+
+# Models are bundled at package time, never committed
+models/*.pt
+models/*.onnx
+models/*.engine
+
+# Datasets and renders live outside the repo (150 GB budget, see TRD 1.1)
+datasets/
+renders/
+
+node_modules/
+ui/dist/
+.env
+.DS_Store
+Thumbs.db

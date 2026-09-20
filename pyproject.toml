@@ -1,0 +1,65 @@
+[project]
+name = "orbital-har"
+version = "0.1.0"
+description = "On-board procedure supervision for BAS experiments (SIH26174)"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "pydantic>=2.9,<3",
+    "pyyaml>=6,<7",
+    "rich>=13,<15",
+]
+
+[project.optional-dependencies]
+perception = [
+    "ultralytics>=8.3,<9",
+    "mediapipe>=0.10,<0.11",
+    "opencv-contrib-python>=4.10,<5",
+]
+server = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.31,<1",
+    "sqlalchemy>=2.0,<3",
+]
+voice = [
+    "piper-tts>=1.2,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+    "pytest-asyncio>=0.24,<1",
+    "ruff>=0.6,<1",
+    "import-linter>=2.0,<3",
+]
+
+[project.scripts]
+orbital-har = "orbital_har.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/orbital_har"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+# Architectural invariant #2 from CLAUDE.md: perception and reasoning never import
+# each other. They communicate only through core.bus.
+[tool.importlinter]
+root_packages = ["orbital_har"]
+
+[[tool.importlinter.contracts]]
+name = "perception and reasoning are independent"
+type = "independence"
+modules = ["orbital_har.perception", "orbital_har.reasoning"]

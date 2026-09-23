@@ -154,6 +154,22 @@ def cmd_demo(args: argparse.Namespace, console: Console) -> int:
     return cmd_replay(replay_args, console)
 
 
+def cmd_verify(args: argparse.Namespace, console: Console) -> int:
+    """Verify a hash-chained telemetry file."""
+    from orbital_har.runtime.telemetry import verify
+
+    result = verify(args.file)
+    if result.ok:
+        console.print(
+            f"[green]OK[/] {result.record_count} records, chain intact"
+        )
+        return 0
+    console.print(
+        f"[bold red]FAILED[/] at seq {result.first_bad_seq}: {result.error}"
+    )
+    return 1
+
+
 # --------------------------------------------------------------------------
 # rendering
 # --------------------------------------------------------------------------
@@ -243,6 +259,10 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("demo", help="build a fixture and replay it")
     d.add_argument("name")
     d.set_defaults(func=cmd_demo)
+
+    vf = sub.add_parser("verify", help="verify a hash-chained telemetry file")
+    vf.add_argument("file", help="path to telemetry.jsonl")
+    vf.set_defaults(func=cmd_verify)
 
     return parser
 

@@ -14,7 +14,7 @@ import pytest
 from orbital_har.core.bus import read_stream
 from orbital_har.reasoning.schema import Procedure
 from orbital_har.simkit.fixtures import ALL_FIXTURES, build
-from tests.conftest import PROCEDURES, run_events
+from tests.conftest import PROCEDURES, run_events, run_verdicts
 
 
 @pytest.fixture(scope="session")
@@ -29,7 +29,7 @@ def procedures() -> dict[str, Procedure]:
 def test_fixture_reaches_expected_verdicts(name: str, procedures) -> None:
     fixture = build(name)
     procedure = procedures[fixture.procedure]
-    engine, alerts = run_events(procedure, fixture.scenario.events)
+    engine, verdicts = run_verdicts(procedure, fixture.scenario.events)
 
     actual = {sid: state.value for sid, state in engine.states.items()}
     for step_id, expected in fixture.expected.final_states.items():
@@ -38,8 +38,11 @@ def test_fixture_reaches_expected_verdicts(name: str, procedures) -> None:
             f"full state: {actual}"
         )
 
-    for expected_alert in fixture.expected.alerts:
-        assert expected_alert in alerts, f"{name}: expected alert {expected_alert}, got {alerts}"
+    if fixture.expected.verdicts:
+        assert verdicts == fixture.expected.verdicts, (
+            f"{name}: unexpected verdict sequence\n"
+            f"got: {verdicts}\nexpected: {fixture.expected.verdicts}"
+        )
 
 
 @pytest.mark.parametrize("name", sorted(ALL_FIXTURES))
@@ -47,7 +50,8 @@ def test_clean_fixtures_raise_no_alerts(name: str, procedures) -> None:
     fixture = build(name)
     if fixture.expected.alerts:
         pytest.skip("this fixture is expected to alert")
-    _, alerts = run_events(procedures[fixture.procedure], fixture.scenario.events)
+    _, verdicts = run_verdicts(procedures[fixture.procedure], fixture.scenario.events)
+    alerts = [v for v in verdicts if v[0] == "alert"]
     assert alerts == [], f"{name} should be clean but raised {alerts}"
 
 

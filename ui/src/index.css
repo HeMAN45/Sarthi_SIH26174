@@ -1,0 +1,52 @@
+:root {
+  /* Page & Panel Backgrounds */
+  --bg-0: #0B0E11;
+  --bg-1: #141A1F;
+  --bg-2: #1D252C;
+
+  /* Borders */
+  --border: #2A343D;
+
+  /* Text Colors */
+  --text-0: #E8EDF2; /* Primary */
+  --text-1: #9AA7B4; /* Secondary */
+  --text-2: #5F6D7A; /* Muted */
+
+  /* Semantic State Colors */
+  --accent: #3B9EFF; /* Active step, focus */
+  --ok:     #35C98B; /* Complete, healthy */
+  --warn:   #F0A63C; /* Unverified, stalled, degraded */
+  --danger: #F2545B; /* Skipped, out of order, fault */
+  --info:   #9B7DF0; /* Overridden, crew-attributed */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-0);
+  color: var(--text-0);
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Monospaced numerals for numeric data */
+.mono {
+  font-family: 'Roboto Mono', 'Courier New', monospace;
+}
+
+.panel {
+  background-color: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}

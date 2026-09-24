@@ -22,17 +22,26 @@ then open http://localhost:8000
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import shutil
+import subprocess
 import threading
 import time
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 import cv2
 import numpy as np
 import uvicorn
 from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    StreamingResponse,
+)
 from pydantic import BaseModel
 
 from orbital_har.core.types import (
@@ -45,6 +54,8 @@ from orbital_har.core.types import (
 )
 from orbital_har.reasoning.engine import Engine, EngineConfig
 from orbital_har.reasoning.schema import Procedure
+from orbital_har.runtime.store import Store
+from orbital_har.runtime.telemetry import TelemetryWriter, verify
 
 _MODE_LOOKAHEAD = {"clean": 0, "strict": 1}
 
@@ -262,6 +273,201 @@ class TrainManager:
             self.status = {"state": "error", "message": str(exc), "epoch": 0, "epochs": epochs}
 
 
+class Recorder:
+    """Stores the run locally as mp4 and optionally republishes it over RTSP.
+
+    Both halves of PS bullet 5. Either half degrades independently: losing the
+    RTSP sink must never stop the recording, and losing video must never stop
+    supervision (invariant #9), so every failure here is logged and swallowed.
+    """
+
+    def __init__(self, path: Path, size: tuple[int, int], fps: float = 20.0,
+                 rtsp_url: str | None = None) -> None:
+        self.path = path
+        self.size = size
+        self.fps = fps
+        self.rtsp_url = rtsp_url
+        self.frames = 0
+        self._writer: cv2.VideoWriter | None = None
+        self._proc: subprocess.Popen | None = None
+
+        try:
+            self._writer = cv2.VideoWriter(
+                str(path), cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
+            if not self._writer.isOpened():
+                self._writer = None
+        except Exception as exc:
+            print(f"[rec] local recording disabled: {exc}")
+            self._writer = None
+
+        if rtsp_url:
+            cmd = [
+                "ffmpeg", "-loglevel", "error", "-y",
+                "-f", "rawvideo", "-pix_fmt", "bgr24",
+                "-s", f"{size[0]}x{size[1]}", "-r", str(int(fps)), "-i", "-",
+                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+                "-f", "rtsp", rtsp_url,
+            ]
+            try:
+                self._proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                              stdout=subprocess.DEVNULL,
+                                              stderr=subprocess.DEVNULL)
+                print(f"[rec] RTSP publishing to {rtsp_url}")
+            except FileNotFoundError:
+                print("[rec] ffmpeg not found; RTSP disabled")
+                self._proc = None
+
+    @property
+    def rtsp_active(self) -> bool:
+        return self._proc is not None and self._proc.poll() is None
+
+    def write(self, frame: np.ndarray) -> None:
+        if frame.shape[1] != self.size[0] or frame.shape[0] != self.size[1]:
+            frame = cv2.resize(frame, self.size)
+        if self._writer is not None:
+            try:
+                self._writer.write(frame)
+                self.frames += 1
+            except Exception:
+                pass
+        if self.rtsp_active:
+            try:
+                self._proc.stdin.write(frame.tobytes())  # type: ignore[union-attr]
+            except Exception:
+                self._proc = None  # sink died; recording continues
+
+    def close(self) -> None:
+        if self._writer is not None:
+            self._writer.release()
+            self._writer = None
+        if self._proc is not None:
+            try:
+                if self._proc.stdin:
+                    self._proc.stdin.close()
+                self._proc.terminate()
+            except Exception:
+                pass
+            self._proc = None
+
+
+def _procedure_rows(proc: Procedure) -> list[dict]:
+    rows = []
+    for i, s in enumerate(proc.steps):
+        rows.append({
+            "step_id": s.id, "ordinal": i, "name": s.name, "voice_prompt": s.voice,
+            "group_id": s.group,
+            "preconditions": list(s.preconditions),
+            "requires": [p.model_dump(mode="json") for p in s.requires],
+            "any_of": [p.model_dump(mode="json") for p in s.any_of],
+            "timeout_s": s.timeout_s, "on_timeout": s.on_timeout,
+        })
+    return rows
+
+
+class SessionLog:
+    """One supervised run: hash-chained telemetry + SQLite rows + video.
+
+    This is PS bullet 4 -- the timestamped, structured, lightweight record of
+    what was actually done. It is append-only and tamper-evident; the chain can
+    be re-verified at any time from the dashboard.
+    """
+
+    def __init__(self, root: Path, store: Store, proc: Procedure, mode: str,
+                 size: tuple[int, int], rtsp_url: str | None, record: bool) -> None:
+        self.id = datetime.now(UTC).strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4]
+        self.dir = root / self.id
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.store = store
+        self.proc = proc
+        self.closed = False
+        self.alerts = 0
+        self.started = time.time()
+
+        self.telemetry = TelemetryWriter(self.dir / "telemetry.jsonl").open()
+        meta = proc.procedure
+        store.upsert_procedure(
+            id=meta.id, name=meta.name, version=meta.version, vocabulary=meta.vocabulary,
+            rack_markers=meta.rack_markers, source_path=f"<runtime:{meta.id}>",
+            yaml_content=json.dumps(_procedure_rows(proc), sort_keys=True),
+            step_count=len(proc.steps), steps=_procedure_rows(proc),
+        )
+        store.create_session(
+            session_id=self.id, procedure_id=meta.id, procedure_version=meta.version,
+            mode="live", session_dir=str(self.dir), steps_total=len(proc.steps),
+        )
+        self.telemetry.write("session_start", {
+            "session_id": self.id, "procedure": meta.id, "name": meta.name,
+            "mode": mode, "steps_total": len(proc.steps),
+        })
+
+        self.recorder = (
+            Recorder(self.dir / "run.mp4", size, rtsp_url=rtsp_url) if record else None
+        )
+
+    def on_verdict(self, ev: Event) -> None:
+        if self.closed:
+            return
+        p = ev.payload
+        iso = datetime.fromtimestamp(ev.t, UTC).isoformat()
+        if ev.type == EventType.STEP_STATE.value:
+            self.telemetry.write("step_state", p, t=iso)
+            self.store.upsert_step_run(
+                session_id=self.id, step_id=p["step_id"], ordinal=p["ordinal"],
+                state=p["state"], confidence=p.get("confidence"),
+                evidence=p.get("evidence"), reason=p.get("reason"),
+            )
+        elif ev.type == EventType.ALERT.value:
+            self.alerts += 1
+            self.telemetry.write("alert", p, t=iso)
+            self.store.insert_alert(
+                session_id=self.id, bus_seq=ev.seq, kind=p["kind"],
+                severity=p["severity"], message=p["message"],
+                step_id=p.get("step_id"), expected_step_id=p.get("expected_step_id"),
+            )
+
+    def write_frame(self, frame: np.ndarray) -> None:
+        if self.recorder is not None and not self.closed:
+            self.recorder.write(frame)
+
+    @property
+    def stats(self) -> dict:
+        return {
+            "id": self.id,
+            "records": self.telemetry.record_count,
+            "bytes": self.telemetry.bytes_written,
+            "frames": self.recorder.frames if self.recorder else 0,
+            "rtsp": bool(self.recorder and self.recorder.rtsp_active),
+        }
+
+    def close(self, engine: Engine) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        counts: dict[str, int] = {}
+        for rt in engine.runtimes:
+            counts[rt.state.value] = counts.get(rt.state.value, 0) + 1
+        summary = {"counts": counts, "complete": engine.is_complete}
+        try:
+            self.telemetry.write("session_end", summary)
+            chain = self.telemetry.chain_summary()
+            self.telemetry.close()
+            self.store.close_session(
+                self.id, status="complete" if engine.is_complete else "aborted",
+                steps_complete=counts.get("complete", 0),
+                steps_skipped=counts.get("skipped", 0),
+                steps_out_of_order=counts.get("out_of_order", 0),
+                steps_unverified=counts.get("unverified", 0),
+                steps_overridden=counts.get("overridden", 0),
+                alert_count=self.alerts,
+                duration_ms=int((time.time() - self.started) * 1000),
+            )
+            self.store.upsert_telemetry_chain(session_id=self.id, **chain)
+        except Exception as exc:
+            print(f"[session] close failed: {exc}")
+        if self.recorder is not None:
+            self.recorder.close()
+
+
 def _placeholder(text: str) -> np.ndarray:
     img = np.zeros((480, 640, 3), dtype=np.uint8)
     img[:] = (30, 25, 20)
@@ -290,7 +496,15 @@ class DemoSession:
     ])
 
     def __init__(self, proc: Procedure, model, camera: int, min_area: float,
-                 open_vocab: bool = False) -> None:
+                 open_vocab: bool = False, data_root: Path = Path("data"),
+                 rtsp_url: str | None = None, record: bool = True) -> None:
+        self.data_root = data_root
+        self.sessions_root = data_root / "sessions"
+        self.sessions_root.mkdir(parents=True, exist_ok=True)
+        self.store = Store(data_root / "sarthi.db")
+        self.rtsp_url = rtsp_url
+        self.record = record
+        self.log: SessionLog | None = None
         self.proc = proc
         self.model = model
         self.open_vocab = open_vocab
@@ -313,6 +527,7 @@ class DemoSession:
         self._alert_seq = 0
         self._alert_count = 0
         self._pending: list = []
+        self._new_session = True   # a fresh run needs a fresh logged session
         self.running = False
         self._thread: threading.Thread | None = None
 
@@ -383,6 +598,7 @@ class DemoSession:
                 self.engine = make_engine(self.proc, self.mode)
                 self._alert = None
                 self._alert_count = 0
+                self._new_session = True
             elif cmd[0] == "load":
                 self.proc = cmd[1]
                 self.wanted = self.proc.vocabulary_classes
@@ -392,6 +608,7 @@ class DemoSession:
                 self.engine = make_engine(self.proc, self.mode)
                 self._alert = None
                 self._alert_count = 0
+                self._new_session = True
             elif cmd[0] == "classifier":
                 from ultralytics import YOLO
                 m = YOLO(cmd[1])
@@ -409,6 +626,7 @@ class DemoSession:
                     pass
                 self._alert = None
                 self._alert_count = 0
+                self._new_session = True
         return out
 
     def _skip_current(self, t: float) -> list[Event]:
@@ -428,8 +646,21 @@ class DemoSession:
         out += e._ensure_active(t)
         return out
 
+    def _start_session(self, size: tuple[int, int]) -> None:
+        """Begin a new logged run. Closes any previous one first."""
+        if self.log is not None and not self.log.closed:
+            self.log.close(self.engine)
+        try:
+            self.log = SessionLog(self.sessions_root, self.store, self.proc,
+                                  self.mode, size, self.rtsp_url, self.record)
+        except Exception as exc:
+            print(f"[session] could not start: {exc}")
+            self.log = None
+
     def _handle(self, evs: list[Event], t: float) -> None:
         for ev in evs:
+            if self.log is not None:
+                self.log.on_verdict(ev)
             if ev.type == EventType.ALERT.value:
                 p = ev.payload
                 self._alert_seq += 1
@@ -464,6 +695,10 @@ class DemoSession:
                 frame = _placeholder(f"camera {self.camera} unavailable")
 
             raw_frame = frame.copy() if have_cam else None
+
+            if self._new_session and have_cam:
+                self._start_session((frame.shape[1], frame.shape[0]))
+                self._new_session = False
 
             objects = []
             if have_cam and self.classifier is not None:
@@ -544,6 +779,13 @@ class DemoSession:
                 fps_t = now
             self._last_t = now
 
+            # Record the annotated frame: the video is evidence, so it should
+            # show what the system saw and concluded.
+            if self.log is not None:
+                self.log.write_frame(frame)
+                if self.engine.is_complete and not self.log.closed:
+                    self.log.close(self.engine)
+
             jpeg = self._encode(frame)
             st = self._build_state(round(fps, 1))
             with self._lock:
@@ -576,6 +818,7 @@ class DemoSession:
             "mode": self.mode,
             "open_vocab": self.open_vocab,
             "fps": fps,
+            "session": (self.log.stats | {"closed": self.log.closed}) if self.log else None,
             "steps": steps,
             "next": ({"id": nxt.step.id, "name": nxt.step.name, "voice": nxt.step.voice}
                      if nxt is not None else None),
@@ -1132,6 +1375,66 @@ def api_build(req: BuildRequest) -> JSONResponse:
     return JSONResponse({"ok": True, "steps": len(seq)})
 
 
+# ------------------------------------------------------------------- sessions
+
+@app.get("/api/sessions")
+def api_sessions(limit: int = 25) -> JSONResponse:
+    return JSONResponse(_get().store.list_sessions(limit=limit))
+
+
+@app.get("/api/sessions/{session_id}")
+def api_session(session_id: str) -> JSONResponse:
+    s = _get()
+    sess = s.store.get_session(session_id)
+    if sess is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return JSONResponse({
+        "session": sess,
+        "steps": s.store.get_step_runs(session_id),
+        "alerts": s.store.get_alerts(session_id),
+        "chain": s.store.get_telemetry_chain(session_id),
+    })
+
+
+@app.get("/api/sessions/{session_id}/verify")
+def api_verify(session_id: str) -> JSONResponse:
+    """Re-walk the hash chain. This is the tamper-evidence demo."""
+    s = _get()
+    sess = s.store.get_session(session_id)
+    if sess is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    res = verify(Path(sess["session_dir"]) / "telemetry.jsonl")
+    s.store.set_verification_result(session_id, verified_ok=res.ok,
+                                    first_bad_seq=res.first_bad_seq)
+    return JSONResponse({"ok": res.ok, "record_count": res.record_count,
+                         "first_bad_seq": res.first_bad_seq, "error": res.error})
+
+
+@app.get("/api/sessions/{session_id}/telemetry")
+def api_telemetry(session_id: str):
+    s = _get()
+    sess = s.store.get_session(session_id)
+    if sess is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    p = Path(sess["session_dir"]) / "telemetry.jsonl"
+    if not p.exists():
+        return JSONResponse({"error": "no telemetry"}, status_code=404)
+    return FileResponse(p, media_type="application/x-ndjson",
+                        filename=f"{session_id}-telemetry.jsonl")
+
+
+@app.get("/api/sessions/{session_id}/video")
+def api_video_file(session_id: str):
+    s = _get()
+    sess = s.store.get_session(session_id)
+    if sess is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    p = Path(sess["session_dir"]) / "run.mp4"
+    if not p.exists():
+        return JSONResponse({"error": "no recording"}, status_code=404)
+    return FileResponse(p, media_type="video/mp4", filename=f"{session_id}.mp4")
+
+
 # -------------------------------------------------------------------- training
 
 @app.get("/api/train/classes")
@@ -1220,6 +1523,11 @@ def main() -> int:
     ap.add_argument("--world-model", default="yolov8s-worldv2.pt")
     ap.add_argument("--min-area", type=float, default=0.06)
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="0.0.0.0 makes the live feed reachable from the network")
+    ap.add_argument("--rtsp", default=None,
+                    help="RTSP URL to publish to, e.g. rtsp://192.168.1.50:8554/live")
+    ap.add_argument("--no-record", action="store_true", help="disable local mp4 recording")
     args = ap.parse_args()
 
     proc_path = Path(args.procedure)
@@ -1235,12 +1543,15 @@ def main() -> int:
         from ultralytics import YOLO
         print("[web] loading detector ...")
         model = YOLO(args.model)
-    _session = DemoSession(proc, model, args.camera, args.min_area, open_vocab=args.world)
+    _session = DemoSession(proc, model, args.camera, args.min_area, open_vocab=args.world,
+                           rtsp_url=args.rtsp, record=not args.no_record)
     _session.start()
     _trainer = TrainManager(Path("data/custom"))
 
     print(f"[web] open  http://localhost:{args.port}")
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+    if args.host == "0.0.0.0":
+        print(f"[web] live feed on the network at http://<this-machine-ip>:{args.port}/video")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0
 
 

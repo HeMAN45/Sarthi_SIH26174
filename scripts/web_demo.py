@@ -42,6 +42,7 @@ from fastapi.responses import (
     JSONResponse,
     StreamingResponse,
 )
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from orbital_har.core.types import (
@@ -431,11 +432,21 @@ class SessionLog:
 
     @property
     def stats(self) -> dict:
+        # Real recorded size, so the downlink ratio is measured rather than
+        # estimated -- it is the headline number, so it should be honest.
+        video_bytes = 0
+        mp4 = self.dir / "run.mp4"
+        try:
+            if mp4.exists():
+                video_bytes = mp4.stat().st_size
+        except OSError:
+            pass
         return {
             "id": self.id,
             "records": self.telemetry.record_count,
             "bytes": self.telemetry.bytes_written,
             "frames": self.recorder.frames if self.recorder else 0,
+            "video_bytes": video_bytes,
             "rtsp": bool(self.recorder and self.recorder.rtsp_active),
         }
 
@@ -1317,8 +1328,22 @@ def _tr() -> TrainManager:
     return _trainer
 
 
+#: Built React SPA. When present it is the UI; otherwise the single-file
+#: dashboard below is served instead, so the demo works even with no npm build.
+_UI_DIST = Path(__file__).resolve().parents[1] / "ui" / "dist"
+_SPA_INDEX = _UI_DIST / "index.html"
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
+    if _SPA_INDEX.is_file():
+        return _SPA_INDEX.read_text(encoding="utf-8")
+    return _INDEX_HTML
+
+
+@app.get("/classic", response_class=HTMLResponse)
+def classic() -> str:
+    """The single-file dashboard, always available as a fallback."""
     return _INDEX_HTML
 
 
@@ -1510,6 +1535,24 @@ async def ws(sock: WebSocket) -> None:
             await asyncio.sleep(0.1)
     except (WebSocketDisconnect, Exception):
         return
+
+
+if _UI_DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(_UI_DIST / "assets")), name="assets")
+
+
+@app.get("/{path:path}", response_class=HTMLResponse)
+def spa_fallback(path: str) -> HTMLResponse:
+    """Client-side routes (/build, /train, /sessions) all serve the SPA shell.
+
+    Registered last so real endpoints win; API paths still 404 honestly rather
+    than silently returning HTML.
+    """
+    if path.startswith("api/") or path in ("ws", "video"):
+        return HTMLResponse('{"error":"not found"}', status_code=404)
+    if _SPA_INDEX.is_file():
+        return HTMLResponse(_SPA_INDEX.read_text(encoding="utf-8"))
+    return HTMLResponse(_INDEX_HTML)
 
 
 def main() -> int:

@@ -51,7 +51,7 @@ def test_clean_fixtures_raise_no_alerts(name: str, procedures) -> None:
     if fixture.expected.alerts:
         pytest.skip("this fixture is expected to alert")
     _, verdicts = run_verdicts(procedures[fixture.procedure], fixture.scenario.events)
-    alerts = [v for v in verdicts if v[0] == "alert"]
+    alerts = [v for v in verdicts if v.type == "alert"]
     assert alerts == [], f"{name} should be clean but raised {alerts}"
 
 

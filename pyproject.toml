@@ -64,3 +64,8 @@ root_packages = ["orbital_har"]
 name = "perception and reasoning are independent"
 type = "independence"
 modules = ["orbital_har.perception", "orbital_har.reasoning"]
+
+[tool.ruff.lint.per-file-ignores]
+# Demo/launcher scripts embed an HTML dashboard: long inline style/markup lines
+# and UI glyphs (＋ × → ·) are intentional. B008 is FastAPI's File()/Form() idiom.
+"scripts/*.py" = ["E501", "RUF001", "B008"]

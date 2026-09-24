@@ -86,6 +86,13 @@ export const api = {
     for (const f of Array.from(files)) fd.append("files", f);
     return fetch("/api/train/upload", { method: "POST", body: fd });
   },
+  uploadVideo: (name: string, file: File, frames = 40) => {
+    const fd = new FormData();
+    fd.append("name", name);
+    fd.append("frames", String(frames));
+    fd.append("file", file);
+    return fetch("/api/train/video", { method: "POST", body: fd }).then((r) => r.json());
+  },
   startTrain: (epochs: number) =>
     fetch(`/api/train/start?epochs=${epochs}`, { method: "POST" }).then((r) => r.json()),
   trainStatus: () =>

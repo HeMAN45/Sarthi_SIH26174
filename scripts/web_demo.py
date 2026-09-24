@@ -185,6 +185,52 @@ class TrainManager:
         (self.images / slug).mkdir(parents=True, exist_ok=True)
         return slug
 
+    def add_video(self, name: str, blob: bytes, max_frames: int = 40) -> int:
+        """Harvest evenly-spaced frames from a recorded clip into a class.
+
+        Recording a short video of the object/state and sampling it is the
+        cheapest way to get the variety (angles, lighting, motion blur) that a
+        classifier needs -- far faster than snapping images one at a time.
+        """
+        tmp = self.root / f"_upload_{uuid.uuid4().hex[:8]}.mp4"
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_bytes(blob)
+        saved = 0
+        try:
+            cap = cv2.VideoCapture(str(tmp))
+            if not cap.isOpened():
+                return 0
+            total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+            if total <= 0:                      # some containers do not report it
+                frames = []
+                while len(frames) < max_frames * 6:
+                    ok, f = cap.read()
+                    if not ok:
+                        break
+                    frames.append(f)
+                step = max(1, len(frames) // max_frames)
+                picked = frames[::step][:max_frames]
+            else:
+                step = max(1, total // max_frames)
+                picked = []
+                for i in range(0, total, step):
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+                    ok, f = cap.read()
+                    if ok:
+                        picked.append(f)
+                    if len(picked) >= max_frames:
+                        break
+            cap.release()
+            blobs = []
+            for f in picked:
+                ok, buf = cv2.imencode(".jpg", f, [cv2.IMWRITE_JPEG_QUALITY, 92])
+                if ok:
+                    blobs.append(buf.tobytes())
+            saved = self.add_images(name, blobs)
+        finally:
+            tmp.unlink(missing_ok=True)
+        return saved
+
     def delete_class(self, name: str) -> None:
         d = self.images / _slug(name)
         if d.is_dir():
@@ -1487,6 +1533,18 @@ def train_del_class(name: str) -> JSONResponse:
 async def train_upload(name: str = Form(...), files: list[UploadFile] = File(...)) -> JSONResponse:
     blobs = [await f.read() for f in files]
     saved = _tr().add_images(name, blobs)
+    return JSONResponse({"ok": True, "saved": saved})
+
+
+@app.post("/api/train/video")
+async def train_video(name: str = Form(...), frames: int = Form(40),
+                      file: UploadFile = File(...)) -> JSONResponse:
+    """Upload a clip; evenly-spaced frames become training images for a class."""
+    blob = await file.read()
+    saved = _tr().add_video(name, blob, max_frames=max(1, min(frames, 200)))
+    if saved == 0:
+        return JSONResponse({"ok": False, "error": "could not read that video"},
+                            status_code=400)
     return JSONResponse({"ok": True, "saved": saved})
 
 

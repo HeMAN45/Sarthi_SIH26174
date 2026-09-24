@@ -112,11 +112,25 @@ export default function Train({ resetSpeech }: { resetSpeech: () => void }) {
                       onClick={() => shoot(c.name, 1)}>📷 Snap</button>
               <button className="btn" style={{ padding: "4px 9px", fontSize: 11 }}
                       onClick={() => shoot(c.name, 10)}>×10</button>
-              <label className="btn" style={{ padding: "4px 9px", fontSize: 11, cursor: "pointer" }}>
+              <label className="btn" style={{ padding: "4px 9px", fontSize: 11, cursor: "pointer" }}
+                     title="upload images">
                 ⭱
                 <input type="file" accept="image/*" multiple style={{ display: "none" }}
                        onChange={async (e) => {
                          if (e.target.files?.length) { await api.upload(c.name, e.target.files); load(); }
+                       }} />
+              </label>
+              <label className="btn" style={{ padding: "4px 9px", fontSize: 11, cursor: "pointer" }}
+                     title="upload a video — frames become training images">
+                🎬
+                <input type="file" accept="video/*" style={{ display: "none" }}
+                       onChange={async (e) => {
+                         const f = e.target.files?.[0];
+                         if (!f) return;
+                         setBusy(`🎬 extracting frames from ${f.name}…`);
+                         const r = await api.uploadVideo(c.name, f);
+                         setBusy(r.ok ? `✓ ${r.saved} frames added to "${c.name}"` : `✗ ${r.error}`);
+                         load();
                        }} />
               </label>
               <button className="btn btn-danger" style={{ padding: "4px 9px", fontSize: 11 }}

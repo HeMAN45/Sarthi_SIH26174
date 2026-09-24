@@ -1,0 +1,162 @@
+/* SARTHI design system — dark aerospace console.
+   No external fonts or CDNs: the offline claim depends on it. */
+
+:root {
+  --bg: #070b11;
+  --bg-2: #0b1119;
+  --panel: rgba(18, 26, 38, 0.82);
+  --panel-solid: #121a26;
+  --line: #1d2b3c;
+  --line-soft: rgba(80, 120, 160, 0.16);
+
+  --txt: #e8f0f7;
+  --dim: #8ba3ba;
+  --faint: #5b7086;
+
+  --accent: #22d3ee;
+  --accent-2: #38bdf8;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --bad: #ef4444;
+  --mag: #c084fc;
+
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  --sans: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --r: 14px;
+  --r-sm: 9px;
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1100px 600px at 82% -10%, rgba(34, 211, 238, 0.09), transparent 60%),
+    radial-gradient(900px 500px at 10% 110%, rgba(56, 189, 248, 0.07), transparent 60%),
+    var(--bg);
+  color: var(--txt);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+button, input, select { font-family: inherit; }
+
+/* ---------------------------------------------------------------- primitives */
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+}
+
+.card-pad { padding: 18px; }
+
+.eyebrow {
+  font-size: 10.5px;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.muted { color: var(--dim); }
+.mono { font-family: var(--mono); }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #16212f;
+  border: 1px solid var(--line);
+  color: var(--txt);
+  border-radius: var(--r-sm);
+  padding: 10px 15px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, transform .08s;
+}
+.btn:hover { border-color: var(--accent); background: #182634; }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-primary { background: linear-gradient(180deg, #0891b2, #0e7490); border-color: #22d3ee55; }
+.btn-primary:hover { background: linear-gradient(180deg, #22d3ee, #0891b2); }
+.btn-danger { border-color: #7f1d1d; color: #fca5a5; }
+.btn-danger:hover { background: #2a1212; border-color: var(--bad); }
+.btn-ok { background: linear-gradient(180deg, #059669, #047857); border-color: #10b98155; }
+
+.input {
+  background: #0d141d;
+  border: 1px solid var(--line);
+  color: var(--txt);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+  width: 100%;
+}
+.input:focus { outline: none; border-color: var(--accent); }
+
+.pill {
+  font-family: var(--mono); font-size: 11px;
+  padding: 5px 11px; border-radius: 20px;
+  border: 1px solid var(--line); color: var(--dim);
+  white-space: nowrap;
+}
+.pill-ok { color: var(--ok); border-color: #14532d; }
+.pill-bad { color: var(--bad); border-color: #7f1d1d; }
+.pill-accent { color: var(--accent); border-color: #0e7490; }
+
+/* dot with a soft pulse for "live" states */
+.dot { width: 9px; height: 9px; border-radius: 50%; background: #33465c; flex: none; }
+.dot-live { background: var(--ok); box-shadow: 0 0 0 0 rgba(34,197,94,.6); animation: pulse 1.8s infinite; }
+@keyframes pulse {
+  70% { box-shadow: 0 0 0 9px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+
+.fade-in { animation: fade .28s ease both; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ------------------------------------------------------------------- layout */
+
+.shell { display: flex; flex-direction: column; min-height: 100%; }
+
+.topbar {
+  display: flex; align-items: center; gap: 18px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, rgba(13,27,42,.9), rgba(7,11,17,.7));
+  position: sticky; top: 0; z-index: 20;
+  backdrop-filter: blur(10px);
+}
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 {
+  margin: 0; font-size: 19px; font-weight: 800; letter-spacing: 5px;
+  background: linear-gradient(90deg, #e8f0f7, #22d3ee);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.brand span { font-size: 11px; color: var(--dim); letter-spacing: 1.4px; }
+
+.nav { display: flex; gap: 4px; margin-left: 10px; }
+.nav a {
+  padding: 8px 14px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 600; color: var(--dim);
+  border: 1px solid transparent;
+  transition: .15s;
+}
+.nav a:hover { color: var(--txt); background: #131d29; }
+.nav a.active { color: var(--accent); border-color: #0e7490; background: #0d1b24; }
+
+.spacer { flex: 1; }
+.topbar-meta { display: flex; gap: 8px; align-items: center; }
+
+.page { padding: 20px 22px 40px; max-width: 1560px; margin: 0 auto; width: 100%; }
+
+.grid-mission { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(360px, 1fr); gap: 18px; }
+@media (max-width: 1080px) { .grid-mission { grid-template-columns: 1fr; } }
+
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 16px; }

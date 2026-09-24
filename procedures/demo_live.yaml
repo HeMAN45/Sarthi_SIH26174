@@ -1,0 +1,57 @@
+# DEMO-LIVE — camera demo procedure (mentor demo, not a real BAS experiment)
+#
+# Uses a general pretrained detector as a STAND-IN for the trained BAS-prop
+# model. Object "classes" here are COCO class names so a live webcam demo can
+# drive the real engine end to end. The trained 11-class BAS model is the next
+# milestone; the pipeline (camera -> detection -> engine -> voice) is real.
+#
+# Objects the presenter holds up, in order: bottle -> notebook -> mobile phone.
+
+procedure:
+  id: demo_live
+  name: Live camera demo (stand-in detector)
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: coco-standin
+
+markers: []
+regions: []
+
+objects:
+  - id: bottle
+    classes: [bottle]
+  - id: notebook
+    classes: [book]
+  - id: phone
+    classes: [cell phone]
+
+steps:
+  - id: s1
+    name: Present the bottle
+    voice: "Step one. Please present the bottle to the camera."
+    preconditions: []
+    requires:
+      - detect: bottle
+        hold_frames: 5
+    timeout_s: 120
+    on_timeout: stall
+
+  - id: s2
+    name: Present the notebook
+    voice: "Step two. Now present the notebook."
+    preconditions: [s1]
+    requires:
+      - detect: book
+        hold_frames: 5
+    timeout_s: 120
+    on_timeout: stall
+
+  - id: s3
+    name: Present the mobile phone
+    voice: "Step three. Finally, present the mobile phone."
+    preconditions: [s2]
+    requires:
+      - detect: cell phone
+        hold_frames: 5
+    timeout_s: 120
+    on_timeout: stall

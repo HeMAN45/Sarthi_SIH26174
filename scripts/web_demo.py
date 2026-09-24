@@ -554,7 +554,7 @@ class DemoSession:
 
     def __init__(self, proc: Procedure, model, camera: int, min_area: float,
                  open_vocab: bool = False, data_root: Path = Path("data"),
-                 rtsp_url: str | None = None, record: bool = True) -> None:
+                 rtsp_url: str | None = None, record: bool = False) -> None:
         self.data_root = data_root
         self.sessions_root = data_root / "sessions"
         self.sessions_root.mkdir(parents=True, exist_ok=True)
@@ -1628,7 +1628,11 @@ def main() -> int:
                     help="0.0.0.0 makes the live feed reachable from the network")
     ap.add_argument("--rtsp", default=None,
                     help="RTSP URL to publish to, e.g. rtsp://192.168.1.50:8554/live")
-    ap.add_argument("--no-record", action="store_true", help="disable local mp4 recording")
+    ap.add_argument("--record", action="store_true",
+                    help="save the annotated run to data/sessions/<id>/run.mp4 "
+                         "(off by default: video is large, telemetry is the deliverable)")
+    ap.add_argument("--no-record", action="store_true",
+                    help=argparse.SUPPRESS)  # accepted for compatibility; now the default
     args = ap.parse_args()
 
     proc_path = Path(args.procedure)
@@ -1645,7 +1649,7 @@ def main() -> int:
         print("[web] loading detector ...")
         model = YOLO(args.model)
     _session = DemoSession(proc, model, args.camera, args.min_area, open_vocab=args.world,
-                           rtsp_url=args.rtsp, record=not args.no_record)
+                           rtsp_url=args.rtsp, record=args.record)
     _session.start()
     _trainer = TrainManager(Path("data/custom"))
 

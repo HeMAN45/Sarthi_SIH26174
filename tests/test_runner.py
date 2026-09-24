@@ -82,8 +82,13 @@ def test_session_runner_integration(store: Store, tmp_path: Path) -> None:
     # Check runner actually bound the bus
     assert engine.bus is bus
     
-    # 2. Run golden replay stream
-    stream_path = Path("data/fixtures/proc_a_skip_s4.jsonl")
+    # 2. Run golden replay stream. Build it here rather than reading a checked-in
+    # file: data/ is gitignored, so a fresh clone has no fixture streams.
+    from orbital_har.simkit.fixtures import build as build_fixture
+
+    stream_path = build_fixture("proc_a_skip_s4").scenario.write(
+        tmp_path / "proc_a_skip_s4.jsonl"
+    )
     stream = read_stream(stream_path)
     runner.replay(stream)
     runner.close()

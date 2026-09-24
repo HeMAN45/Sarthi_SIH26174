@@ -1,0 +1,67 @@
+# DEMO-LIVE-4 — same as demo_live but with a 4th step (a ball).
+#
+# Demonstrates that adding an object the detector ALREADY knows needs zero
+# training: 'sports ball', 'apple', 'orange', 'cup', etc. are all COCO classes,
+# so a new step is just a few lines of YAML. (A custom prop like red_box_open is
+# NOT in COCO and would require collecting images + training -- see the chat.)
+
+procedure:
+  id: demo_live4
+  name: Live camera demo (4 steps, stand-in detector)
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: coco-standin
+
+markers: []
+regions: []
+
+objects:
+  - id: bottle
+    classes: [bottle]
+  - id: notebook
+    classes: [book]
+  - id: ball
+    classes: [sports ball]      # <-- the new object; already known to the model
+  - id: phone
+    classes: [cell phone]
+
+steps:
+  - id: s1
+    name: Present the bottle
+    voice: "Step one. Please present the bottle to the camera."
+    preconditions: []
+    requires:
+      - detect: bottle
+        hold_frames: 5
+    timeout_s: 120
+    on_timeout: stall
+
+  - id: s2
+    name: Present the notebook
+    voice: "Step two. Now present the notebook."
+    preconditions: [s1]
+    requires:
+      - detect: book
+        hold_frames: 5
+    timeout_s: 120
+    on_timeout: stall
+
+  - id: s3
+    name: Present the ball
+    voice: "Step three. Now present the ball."
+    preconditions: [s2]
+    requires:
+      - detect: sports ball
+        hold_frames: 5
+    timeout_s: 120
+    on_timeout: stall
+
+  - id: s4
+    name: Present the mobile phone
+    voice: "Step four. Finally, present the mobile phone."
+    preconditions: [s3]
+    requires:
+      - detect: cell phone
+        hold_frames: 5
+    timeout_s: 120
+    on_timeout: stall

@@ -11,10 +11,16 @@ build/
 data/
 !data/.gitkeep
 
-# Models are bundled at package time, never committed
-models/*.pt
-models/*.onnx
-models/*.engine
+# Models are bundled at package time, never committed.
+# Weights (yolo11n.pt, yolov8s-worldv2.pt, yolo11n-cls.pt, trained best.pt) are
+# downloaded/produced on first run -- never commit them.
+*.pt
+*.onnx
+*.engine
+runs/
+
+# Deck build workspace: keep the generator scripts, not its dependencies
+_ppt_build/node_modules/
 
 # Datasets and renders live outside the repo (150 GB budget, see TRD 1.1)
 datasets/

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { LiveState } from "./api";
 
-/** Subscribes to the engine's live state and speaks prompts and alerts.
+/** Subscribes to the engine's live state, and speaks only when the device cannot.
  *
- *  Speech is done in the browser: it is offline (OS voices), needs no server
- *  audio device, and keeps the voice on the machine the operator is looking at.
+ *  The device owns the voice: an alert that depends on somebody having a browser
+ *  tab open is not a mission-critical alert. Browser speech stays as the fallback
+ *  for when no voice model or audio player is installed — in which case the UI
+ *  also says so rather than quietly sounding fine.
  */
 export function useLive() {
   const [state, setState] = useState<LiveState | null>(null);
@@ -41,6 +43,13 @@ export function useLive() {
         let s: LiveState;
         try { s = JSON.parse(ev.data); } catch { return; }
         setState(s);
+
+        // The device already spoke. Saying it twice is worse than not at all.
+        if (s.voice?.available) {
+          spokenStep.current = s.next?.id ?? null;
+          spokenAlert.current = s.alert?.seq ?? 0;
+          return;
+        }
 
         if (s.next && s.next.id !== spokenStep.current) {
           spokenStep.current = s.next.id;

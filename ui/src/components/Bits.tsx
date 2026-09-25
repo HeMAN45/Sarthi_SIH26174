@@ -1,98 +1,127 @@
 import type { ReactNode } from "react";
-import type { StepState } from "../lib/api";
+import type { Step, StepState } from "../lib/api";
 
-/* ------------------------------------------------------------------ step UI */
+/* ------------------------------------------------------------------ states */
 
-export const STATE_META: Record<StepState, { label: string; color: string }> = {
-  pending: { label: "pending", color: "var(--dim)" },
-  active: { label: "active", color: "var(--accent)" },
-  complete: { label: "complete", color: "var(--ok)" },
-  skipped: { label: "skipped", color: "var(--bad)" },
-  out_of_order: { label: "out of order", color: "var(--bad)" },
-  unverified: { label: "unverified", color: "var(--warn)" },
-  overridden: { label: "overridden", color: "var(--mag)" },
-  stalled: { label: "stalled", color: "var(--warn)" },
+/** A glyph and a word accompany every colour. Projectors wash out hue and a
+ *  colour-blind judge reads the same screen, so colour never carries a state
+ *  on its own. */
+export const STATE_META: Record<
+  StepState,
+  { label: string; color: string; glyph: string; done: boolean }
+> = {
+  pending:      { label: "pending",   color: "var(--faint)",   glyph: "○", done: false },
+  active:       { label: "active",    color: "var(--accent)",  glyph: "▶", done: false },
+  complete:     { label: "complete",  color: "var(--accent)",  glyph: "✓", done: true },
+  skipped:      { label: "skipped",   color: "var(--alert)",   glyph: "✕", done: true },
+  out_of_order: { label: "out of seq", color: "var(--alert)",  glyph: "⇄", done: true },
+  unverified:   { label: "unverified", color: "var(--caution)", glyph: "?", done: false },
+  overridden:   { label: "overridden", color: "var(--info)",   glyph: "✓", done: true },
+  stalled:      { label: "stalled",   color: "var(--caution)", glyph: "‖", done: false },
 };
 
-export function StepRow({
-  index, name, state, confidence,
-}: { index: number; name: string; state: StepState; confidence: number }) {
-  const meta = STATE_META[state] ?? STATE_META.pending;
-  const isActive = state === "active";
+export function StepRow({ step, index }: { step: Step; index: number }) {
+  const meta = STATE_META[step.state] ?? STATE_META.pending;
+  const isActive = step.state === "active";
+
   return (
-    <div
-      className="fade-in"
-      style={{
-        display: "flex", alignItems: "center", gap: 12,
-        padding: "11px 13px", marginBottom: 8,
-        background: isActive ? "rgba(34,211,238,.07)" : "#0d141d",
-        border: `1px solid ${isActive ? "#0e7490" : "var(--line)"}`,
-        borderRadius: "var(--r-sm)",
-        transition: "background .2s, border-color .2s",
-      }}
-    >
-      <span className="mono" style={{ color: "var(--faint)", fontSize: 11, width: 16 }}>
-        {index + 1}
-      </span>
+    <div className={`step${isActive ? " step-active" : ""}${meta.done ? " step-done" : ""}`}>
       <span
-        className={isActive ? "dot dot-live" : "dot"}
-        style={{ background: meta.color }}
-      />
-      <span style={{ flex: 1, fontSize: 14 }}>{name}</span>
-      {confidence > 0 && (
-        <span className="mono" style={{ fontSize: 11, color: "var(--dim)" }}>
-          {confidence.toFixed(2)}
-        </span>
-      )}
-      <span
-        className="mono"
+        className="step-node"
         style={{
-          fontSize: 10.5, letterSpacing: 1, textTransform: "uppercase",
-          color: meta.color, border: `1px solid ${meta.color}44`,
-          padding: "3px 9px", borderRadius: 20,
+          borderColor: meta.done || isActive ? meta.color : "var(--line)",
+          background: meta.done ? meta.color : "var(--panel)",
         }}
-      >
-        {meta.label}
+      />
+      <span className="step-ord mono">{index + 1}</span>
+      <span className="step-name" style={{ color: isActive ? "var(--txt)" : undefined }}>
+        {step.name}
+      </span>
+      {step.duration_s != null && (
+        <span className="step-conf">{step.duration_s}s</span>
+      )}
+      {step.confidence > 0 && !meta.done && (
+        <span className="step-conf">{step.confidence.toFixed(2)}</span>
+      )}
+      <span className="step-state" style={{ color: meta.color }}>
+        {meta.glyph} {meta.label}
       </span>
     </div>
   );
 }
 
-/* ---------------------------------------------------------------- stat tile */
+/* ------------------------------------------------------------------- tiles */
 
-export function Stat({
-  label, value, sub, tone,
-}: { label: string; value: ReactNode; sub?: string; tone?: "ok" | "bad" | "warn" | "accent" }) {
+export function Tile({
+  label, value, sub, tone, idle,
+}: {
+  label: string;
+  value: ReactNode;
+  sub?: string;
+  tone?: "ok" | "alert" | "caution" | "info";
+  idle?: boolean;
+}) {
   const color =
-    tone === "ok" ? "var(--ok)" : tone === "bad" ? "var(--bad)"
-    : tone === "warn" ? "var(--warn)" : tone === "accent" ? "var(--accent)" : "var(--txt)";
+    tone === "ok" ? "var(--accent)"
+    : tone === "alert" ? "var(--alert)"
+    : tone === "caution" ? "var(--caution)"
+    : tone === "info" ? "var(--info)"
+    : "var(--txt)";
   return (
-    <div className="card card-pad" style={{ padding: 14 }}>
-      <div className="eyebrow" style={{ color: "var(--dim)" }}>{label}</div>
-      <div className="mono" style={{ fontSize: 22, fontWeight: 700, color, marginTop: 6 }}>
-        {value}
-      </div>
-      {sub && <div style={{ fontSize: 11, color: "var(--faint)", marginTop: 2 }}>{sub}</div>}
+    <div className={`tile${idle ? " tile-idle" : ""}`}>
+      <div className="label">{label}</div>
+      <div className="tile-value" style={idle ? undefined : { color }}>{value}</div>
+      {sub && <div className="tile-sub">{sub}</div>}
     </div>
   );
 }
 
-/* -------------------------------------------------------------- empty state */
+/* ------------------------------------------------------------------- chips */
+
+export function Chip({
+  tone = "idle", pulse, children,
+}: {
+  tone?: "ok" | "alert" | "caution" | "idle";
+  pulse?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <span className={`chip chip-${tone}`}>
+      <span className={`led${pulse ? " led-pulse" : ""}`} />
+      {children}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------- misc */
 
 export function Empty({ children }: { children: ReactNode }) {
-  return (
-    <div style={{ color: "var(--dim)", fontSize: 13, padding: "18px 4px", textAlign: "center" }}>
-      {children}
-    </div>
-  );
+  return <div className="empty">{children}</div>;
 }
 
 export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
-      <div className="eyebrow">{children}</div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      <div className="label">{children}</div>
       <div style={{ flex: 1 }} />
       {right}
+    </div>
+  );
+}
+
+/** Errors are shown, never swallowed. A blank panel with no explanation is
+ *  the worst possible failure mode: it looks like a feature that does not
+ *  exist rather than a request that failed. */
+export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="banner-warn" style={{ marginBottom: 10 }}>
+      <span>⚠</span>
+      <span style={{ flex: 1 }}>{message}</span>
+      {onRetry && (
+        <button className="btn" style={{ padding: "4px 10px" }} onClick={onRetry}>
+          Retry
+        </button>
+      )}
     </div>
   );
 }

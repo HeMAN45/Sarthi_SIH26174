@@ -67,12 +67,9 @@ class Store:
                    (id, name, version, vocabulary, rack_markers, yaml_sha256,
                     source_path, step_count, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (id, name, version, vocabulary, rack_markers, sha,
-                 source_path, step_count, _now()),
+                (id, name, version, vocabulary, rack_markers, sha, source_path, step_count, _now()),
             )
-            self.conn.execute(
-                "DELETE FROM procedure_steps WHERE procedure_id = ?", (id,)
-            )
+            self.conn.execute("DELETE FROM procedure_steps WHERE procedure_id = ?", (id,))
             for s in steps:
                 self.conn.execute(
                     """INSERT INTO procedure_steps
@@ -176,14 +173,10 @@ class Store:
             )
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
-        row = self.conn.execute(
-            "SELECT * FROM sessions WHERE id = ?", (session_id,)
-        ).fetchone()
+        row = self.conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
         return dict(row) if row else None
 
-    def list_sessions(
-        self, *, limit: int = 50, offset: int = 0
-    ) -> list[dict[str, Any]]:
+    def list_sessions(self, *, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         rows = self.conn.execute(
             "SELECT * FROM sessions ORDER BY started_at DESC LIMIT ? OFFSET ?",
             (limit, offset),
@@ -269,8 +262,7 @@ class Store:
                    (session_id, bus_seq, kind, severity, step_id,
                     expected_step_id, message, raised_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (session_id, bus_seq, kind, severity, step_id,
-                 expected_step_id, message, _now()),
+                (session_id, bus_seq, kind, severity, step_id, expected_step_id, message, _now()),
             )
             return cur.lastrowid  # type: ignore[return-value]
 
@@ -327,8 +319,15 @@ class Store:
                    (session_id, genesis_hash, last_seq, last_hash,
                     record_count, bytes_written, raw_video_equiv_bytes)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (session_id, genesis_hash, last_seq, last_hash,
-                 record_count, bytes_written, raw_video_equiv_bytes),
+                (
+                    session_id,
+                    genesis_hash,
+                    last_seq,
+                    last_hash,
+                    record_count,
+                    bytes_written,
+                    raw_video_equiv_bytes,
+                ),
             )
 
     def set_verification_result(
@@ -373,6 +372,111 @@ class Store:
                    (session_id, t, fps, latency_ms, mem_mb, gpu_util,
                     power_w, dropped_frames, degraded_level)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (session_id, _now(), fps, latency_ms, mem_mb, gpu_util,
-                 power_w, dropped_frames, degraded_level),
+                (
+                    session_id,
+                    _now(),
+                    fps,
+                    latency_ms,
+                    mem_mb,
+                    gpu_util,
+                    power_w,
+                    dropped_frames,
+                    degraded_level,
+                ),
             )
+
+    # ------------------------------------------------------------ model registry
+
+    def upsert_model(
+        self,
+        *,
+        name: str,
+        task: str,
+        version: str,
+        file_path: str,
+        classes: list[str] | None = None,
+        metrics: dict[str, Any] | None = None,
+        trained_at: str | None = None,
+        dataset_tag: str | None = None,
+        notes: str | None = None,
+    ) -> int:
+        """Register a trained model and return its id.
+
+        ``file_sha256`` is computed from the weights so a model referenced by a
+        session can be proven to be the one that actually ran.
+        """
+        path = Path(file_path)
+        sha = ""
+        if path.is_file():
+            digest = hashlib.sha256()
+            with path.open("rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    digest.update(chunk)
+            sha = digest.hexdigest()
+
+        with self.conn:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO models
+                   (name, task, version, file_path, file_sha256, classes,
+                    metrics, trained_at, dataset_tag, notes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    name,
+                    task,
+                    version,
+                    str(file_path),
+                    sha,
+                    json.dumps(classes) if classes is not None else None,
+                    json.dumps(metrics) if metrics is not None else None,
+                    trained_at or _now(),
+                    dataset_tag,
+                    notes,
+                ),
+            )
+        row = self.conn.execute(
+            "SELECT id FROM models WHERE name = ? AND version = ?", (name, version)
+        ).fetchone()
+        return int(row["id"])
+
+    def get_model(self, model_id: int) -> dict[str, Any] | None:
+        row = self.conn.execute("SELECT * FROM models WHERE id = ?", (model_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_models(self) -> list[dict[str, Any]]:
+        rows = self.conn.execute("SELECT * FROM models ORDER BY trained_at DESC").fetchall()
+        return [dict(r) for r in rows]
+
+    # -------------------------------------------------------------- calibration
+
+    def insert_calibration(
+        self,
+        *,
+        model_id: int,
+        temperature: float,
+        tau_complete: float,
+        tau_abstain: float,
+        dataset_hash: str,
+        ece: float | None = None,
+    ) -> int:
+        """Record a fitted calibration (D-06).
+
+        Append-only: a refit is a new row, never an edit. The τ values a session
+        ran under must stay recoverable after they are superseded.
+        """
+        with self.conn:
+            cur = self.conn.execute(
+                """INSERT INTO calibrations
+                   (model_id, temperature, tau_complete, tau_abstain,
+                    dataset_hash, ece, fitted_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (model_id, temperature, tau_complete, tau_abstain, dataset_hash, ece, _now()),
+            )
+        return int(cur.lastrowid)
+
+    def latest_calibration(self, model_id: int) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            """SELECT * FROM calibrations WHERE model_id = ?
+               ORDER BY fitted_at DESC, id DESC LIMIT 1""",
+            (model_id,),
+        ).fetchone()
+        return dict(row) if row else None

@@ -136,12 +136,17 @@ def _eval_contact(p, ctx: EvalContext) -> PredicateResult:
     if frames is None:
         return PredicateResult(False, 0.0, f"{p.a}-{p.b} warming up")
 
+    # Both sides resolve through the object vocabulary. Perception reports
+    # participants by detector class ("red_box_open"); a procedure names them by
+    # object id ("red_box"). Resolving both ends lets the two meet without
+    # perception ever needing to know what a procedure object is.
+    a_classes = ctx.procedure.classes_for(p.a) or {p.a}
     b_classes = ctx.procedure.classes_for(p.b) or {p.b}
     confs = []
     for f in frames:
         hit = None
         for c in f.contacts:
-            if c.a != p.a or c.conf < p.min_conf:
+            if c.a not in a_classes or c.conf < p.min_conf:
                 continue
             cls = _resolve_contact_class(f, c)
             if cls is not None and cls in b_classes:

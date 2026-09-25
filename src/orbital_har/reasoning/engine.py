@@ -28,7 +28,9 @@ the safer failure -- we stay silent rather than inventing a verdict.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
+from itertools import pairwise
 from typing import Any
 
 from orbital_har.core.bus import EventBus
@@ -69,6 +71,14 @@ class EngineConfig:
     #: resting-state evidence in far-future steps from firing spuriously.
     completion_lookahead: int = 2
     window_capacity: int = 240
+    #: D-07 free-float advisory. A tether-required object moving faster than
+    #: this while nothing is touching it is drifting, not being handled.
+    free_float_speed_mm_s: float = 250.0
+    free_float_window_s: float = 0.6
+    #: One advisory per object per cooldown. A drifting object stays drifting
+    #: for many frames, and repeating the same warning is how crews learn to
+    #: ignore warnings (PRD NFR-04).
+    free_float_cooldown_s: float = 8.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +139,8 @@ class Engine:
             StepRuntime(step=s, ordinal=i) for i, s in enumerate(procedure.steps)
         ]
         self._by_id = {rt.step.id: rt for rt in self.runtimes}
+        #: object id -> time of its last free-float advisory.
+        self._free_float_last: dict[str, float] = {}
 
     # ------------------------------------------------------------- accessors
 
@@ -198,11 +210,46 @@ class Engine:
         out += self._ensure_active(t)
         return out
 
+    def skip(self, step_id: str | None, t: float, reason: str = "crew skipped") -> list[Event]:
+        """Mark a step skipped at the crew's request.
+
+        ``step_id`` of None targets whatever the crew is currently being asked
+        to do -- the active step, else the frontier. A crew skip is a recorded
+        decision, not a detection failure, so it carries its reason and still
+        raises the skip alert: the telemetry must show the step was not done.
+        """
+        if step_id is None:
+            rt = next((r for r in self.runtimes if r.state == StepState.ACTIVE), None)
+            rt = rt or self.next_step
+        else:
+            rt = self._by_id.get(step_id)
+        if rt is None or rt.state in RESOLVED_STATES:
+            return []
+
+        rt.state = StepState.SKIPPED
+        rt.resolved_t = t
+        rt.reason = reason
+        out = [
+            self._emit_state(rt, t),
+            self._emit_alert(
+                AlertKind.SKIP,
+                Severity.HIGH,
+                t,
+                step_id=rt.step.id,
+                message=f"Step skipped: {rt.step.name}",
+            ),
+        ]
+        out += self._activate_ready(t)
+        out += self._ensure_active(t)
+        return out
+
     def _on_crew_action(self, event: Event) -> list[Event]:
         action = event.payload.get("action")
         step_id = event.payload.get("step_id")
         if action == "override" and step_id:
             return self.override(step_id, event.t, event.payload.get("actor", "crew"))
+        if action == "skip":
+            return self.skip(step_id, event.t, event.payload.get("reason", "crew skipped"))
         return []
 
     # ------------------------------------------------------------------ tick
@@ -246,7 +293,71 @@ class Engine:
             out += self._complete(rt, t)
 
         out += self._check_timeouts(t)
+        out += self._check_free_float(t)
         out += self._ensure_active(t)
+        return out
+
+    def _check_free_float(self, t: float) -> list[Event]:
+        """Advise when a tether-required object is drifting untouched (D-07).
+
+        Advisory, not a verdict: it never changes a step's state. A floating
+        vial is a housekeeping problem, and conflating it with procedure
+        compliance would let a tidy-up failure mark a correct step wrong.
+        """
+        tethered = self.procedure.tethered_objects()
+        if not tethered:
+            return []
+        frames = self.window.since(t - self.config.free_float_window_s)
+        if len(frames) < 2:
+            return []
+
+        latest = frames[-1]
+        out: list[Event] = []
+        for obj_id in sorted(tethered):
+            classes = self.procedure.classes_for(obj_id)
+
+            # Held is not adrift. Either end of a contact counts: the operator
+            # may be holding the object or holding a tool that holds it.
+            if any(c.b_cls in classes or c.a in classes for c in latest.contacts):
+                continue
+
+            track = [
+                (f.t, det.centroid_mm)
+                for f in frames
+                if (det := f.best(classes)) is not None and det.centroid_mm is not None
+            ]
+            if len(track) < 2:
+                continue
+
+            # Median of per-interval speeds, not net displacement over the
+            # window. A detector jitter or a track-id switch produces one huge
+            # interval among many still ones; net displacement reads that as
+            # flight, the median reads it as the artefact it is. Drifting
+            # objects move on *every* interval, so they survive the median.
+            speeds = [
+                math.dist(pa, pb) / (tb - ta) for (ta, pa), (tb, pb) in pairwise(track) if tb > ta
+            ]
+            if len(speeds) < 4:
+                continue
+            speeds.sort()
+            speed = speeds[len(speeds) // 2]
+            if speed < self.config.free_float_speed_mm_s:
+                continue
+
+            last = self._free_float_last.get(obj_id)
+            if last is not None and t - last < self.config.free_float_cooldown_s:
+                continue
+            self._free_float_last[obj_id] = t
+            out.append(
+                self._emit_alert(
+                    AlertKind.FREE_FLOAT,
+                    Severity.MEDIUM,
+                    t,
+                    message=(
+                        f"{obj_id.replace('_', ' ')} is adrift at {speed:.0f} mm/s - secure it."
+                    ),
+                )
+            )
         return out
 
     def _frontier(self) -> int:

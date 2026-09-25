@@ -101,8 +101,9 @@ _MODE_LABEL = {
 }
 
 
-def draw_hud(frame, engine: Engine, alert: tuple[str, float] | None, model_note: str,
-             mode: str = "clean"):
+def draw_hud(
+    frame, engine: Engine, alert: tuple[str, float] | None, model_note: str, mode: str = "clean"
+):
     h, w = frame.shape[:2]
     panel_w = 430
     overlay = frame.copy()
@@ -110,50 +111,86 @@ def draw_hud(frame, engine: Engine, alert: tuple[str, float] | None, model_note:
     cv2.addWeighted(overlay, 0.55, frame, 0.45, 0, frame)
 
     y = 34
-    cv2.putText(frame, "ORBITAL-HAR  (live)", (16, y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    cv2.putText(
+        frame, "ORBITAL-HAR  (live)", (16, y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2
+    )
     y += 26
-    cv2.putText(frame, model_note, (16, y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (180, 180, 180), 1)
+    cv2.putText(frame, model_note, (16, y), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (180, 180, 180), 1)
     y += 18
-    cv2.putText(frame, "Present ONE object, held close to the camera.", (16, y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 200, 255), 1)
+    cv2.putText(
+        frame,
+        "Present ONE object, held close to the camera.",
+        (16, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.42,
+        (0, 200, 255),
+        1,
+    )
     y += 18
-    cv2.putText(frame, f"mode: {_MODE_LABEL.get(mode, mode)}", (16, y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 0), 1)
+    cv2.putText(
+        frame,
+        f"mode: {_MODE_LABEL.get(mode, mode)}",
+        (16, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.42,
+        (255, 255, 0),
+        1,
+    )
     y += 30
 
     for rt in engine.runtimes:
         color = _STATE_COLOR.get(rt.state.value, (200, 200, 200))
         label = f"{rt.step.id}  {rt.step.name}"
-        cv2.putText(frame, label, (16, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.52, color, 1)
-        cv2.putText(frame, rt.state.value.upper(), (16, y + 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.46, color, 1)
+        cv2.putText(frame, label, (16, y), cv2.FONT_HERSHEY_SIMPLEX, 0.52, color, 1)
+        cv2.putText(
+            frame, rt.state.value.upper(), (16, y + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.46, color, 1
+        )
         if rt.confidence:
-            cv2.putText(frame, f"conf {rt.confidence:.2f}", (250, y + 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.44, color, 1)
+            cv2.putText(
+                frame,
+                f"conf {rt.confidence:.2f}",
+                (250, y + 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.44,
+                color,
+                1,
+            )
         y += 50
 
     nxt = engine.next_step
     y += 6
     if nxt is not None:
-        cv2.putText(frame, "NEXT:", (16, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
-        cv2.putText(frame, nxt.step.voice[:44], (16, y + 22),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.44, (255, 255, 0), 1)
+        cv2.putText(frame, "NEXT:", (16, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+        cv2.putText(
+            frame,
+            nxt.step.voice[:44],
+            (16, y + 22),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.44,
+            (255, 255, 0),
+            1,
+        )
     elif engine.is_complete:
-        cv2.putText(frame, "PROCEDURE COMPLETE", (16, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 220, 0), 2)
+        cv2.putText(
+            frame, "PROCEDURE COMPLETE", (16, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 220, 0), 2
+        )
 
     # Alert banner across the top of the video area.
     if alert is not None and time.time() - alert[1] < 4.0:
         cv2.rectangle(frame, (panel_w, 0), (w, 54), (0, 0, 200), -1)
-        cv2.putText(frame, alert[0], (panel_w + 16, 36),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(
+            frame, alert[0], (panel_w + 16, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2
+        )
 
-    cv2.putText(frame, "k skip current   r restart   o out-of-order   s summary   q quit",
-                (16, h - 16), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (200, 200, 200), 1)
+    cv2.putText(
+        frame,
+        "k skip current   r restart   o out-of-order   s summary   q quit",
+        (16, h - 16),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.44,
+        (200, 200, 200),
+        1,
+    )
 
 
 def draw_summary(frame, engine: Engine, alert_count: int, mode: str) -> None:
@@ -190,11 +227,25 @@ def draw_summary(frame, engine: Engine, alert_count: int, mode: str) -> None:
     title = "RUN COMPLETE" if engine.is_complete else "RUN SUMMARY"
     cv2.putText(frame, title, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 220, 0), 2)
     y += 34
-    cv2.putText(frame, f"{engine.procedure.procedure.name}", (x, y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+    cv2.putText(
+        frame,
+        f"{engine.procedure.procedure.name}",
+        (x, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (200, 200, 200),
+        1,
+    )
     y += 20
-    cv2.putText(frame, f"mode: {_MODE_LABEL.get(mode, mode)}", (x, y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+    cv2.putText(
+        frame,
+        f"mode: {_MODE_LABEL.get(mode, mode)}",
+        (x, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (200, 200, 200),
+        1,
+    )
     y += 40
 
     rows = [
@@ -212,8 +263,15 @@ def draw_summary(frame, engine: Engine, alert_count: int, mode: str) -> None:
         y += 36
 
     y += 6
-    cv2.putText(frame, "k skip current   r restart   o out-of-order   s hide   q quit", (x, y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1)
+    cv2.putText(
+        frame,
+        "k skip current   r restart   o out-of-order   s hide   q quit",
+        (x, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (150, 150, 150),
+        1,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -252,8 +310,11 @@ def skip_current_step(engine: Engine, t: float) -> list[Event]:
     out = [
         engine._emit_state(rt, t),
         engine._emit_alert(
-            AlertKind.SKIP, Severity.HIGH, t,
-            step_id=rt.step.id, message=f"Step skipped: {rt.step.name}",
+            AlertKind.SKIP,
+            Severity.HIGH,
+            t,
+            step_id=rt.step.id,
+            message=f"Step skipped: {rt.step.name}",
         ),
     ]
     out += engine._activate_ready(t)
@@ -311,12 +372,33 @@ def run(args: argparse.Namespace) -> int:
                 af = max(0.0, x1 - x0) * max(0.0, y1 - y0) / fa
                 col = (0, 220, 0) if cls_name in wanted else (0, 170, 255)
                 cv2.rectangle(frame, (int(x0), int(y0)), (int(x1), int(y1)), col, 2)
-                cv2.putText(frame, f"{cls_name} {conf:.2f} {af*100:.0f}%",
-                            (int(x0), int(y0) - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2)
-            cv2.putText(frame, "PREVIEW  green=procedure object  orange=other   q quit",
-                        (16, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            cv2.putText(frame, f"procedure classes: {sorted(wanted)}",
-                        (16, 56), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 220, 0), 1)
+                cv2.putText(
+                    frame,
+                    f"{cls_name} {conf:.2f} {af * 100:.0f}%",
+                    (int(x0), int(y0) - 6),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    col,
+                    2,
+                )
+            cv2.putText(
+                frame,
+                "PREVIEW  green=procedure object  orange=other   q quit",
+                (16, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 255),
+                2,
+            )
+            cv2.putText(
+                frame,
+                f"procedure classes: {sorted(wanted)}",
+                (16, 56),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 220, 0),
+                1,
+            )
             cv2.imshow("ORBITAL-HAR live demo", frame)
             if (cv2.waitKey(1) & 0xFF) == ord("q"):
                 break
@@ -391,32 +473,44 @@ def run(args: argparse.Namespace) -> int:
             color = (0, 220, 0) if is_presented else (110, 110, 110)
             thick = 3 if is_presented else 1
             cv2.rectangle(frame, (int(x0), int(y0)), (int(x1), int(y1)), color, thick)
-            tag = f"{cls_name} {conf:.2f} {area_frac*100:.0f}%"
+            tag = f"{cls_name} {conf:.2f} {area_frac * 100:.0f}%"
             if not is_presented and i == 0:
                 tag += "  (hold closer)"
-            cv2.putText(frame, tag, (int(x0), int(y0) - 6),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            cv2.putText(frame, tag, (int(x0), int(y0) - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         if presented is not None:
             _, cls_name, conf, (x0, y0, x1, y1) = presented
-            objects.append({
-                "cls": cls_name,
-                "conf": round(conf, 3),
-                "bbox": [x0, y0, x1, y1],
-                "track_id": None,
-            })
+            objects.append(
+                {
+                    "cls": cls_name,
+                    "conf": round(conf, 3),
+                    "bbox": [x0, y0, x1, y1],
+                    "track_id": None,
+                }
+            )
 
         # The engine closes the PREVIOUS frame's snapshot when this frame event
         # arrives, so verdicts (alerts, prompts, completions) are returned by the
         # frame call as often as the detection call. Collect both.
         seq += 1
-        verdicts = engine.on_event(Event(t=now, seq=seq, src="capture",
-                                        type=EventType.FRAME.value,
-                                        payload={"frame_id": fid, "w": frame.shape[1],
-                                                 "h": frame.shape[0]}))
+        verdicts = engine.on_event(
+            Event(
+                t=now,
+                seq=seq,
+                src="capture",
+                type=EventType.FRAME.value,
+                payload={"frame_id": fid, "w": frame.shape[1], "h": frame.shape[0]},
+            )
+        )
         seq += 1
-        verdicts += engine.on_event(Event(t=now, seq=seq, src="detect",
-                                         type=EventType.DETECTION.value,
-                                         payload={"frame_id": fid, "objects": objects}))
+        verdicts += engine.on_event(
+            Event(
+                t=now,
+                seq=seq,
+                src="detect",
+                type=EventType.DETECTION.value,
+                payload={"frame_id": fid, "objects": objects},
+            )
+        )
 
         handle(verdicts, now)
 
@@ -475,12 +569,20 @@ def main() -> int:
     ap.add_argument("--procedure", default="demo_live")
     ap.add_argument("--camera", type=int, default=0)
     ap.add_argument("--model", default="yolo11n.pt")
-    ap.add_argument("--strict", action="store_true",
-                    help="start in strict mode (out-of-order enforcement)")
-    ap.add_argument("--min-area", type=float, default=0.06,
-                    help="min fraction of frame an object must fill to count as 'presented'")
-    ap.add_argument("--preview", action="store_true",
-                    help="detection-only calibration view (see what each object is labelled)")
+    ap.add_argument(
+        "--strict", action="store_true", help="start in strict mode (out-of-order enforcement)"
+    )
+    ap.add_argument(
+        "--min-area",
+        type=float,
+        default=0.06,
+        help="min fraction of frame an object must fill to count as 'presented'",
+    )
+    ap.add_argument(
+        "--preview",
+        action="store_true",
+        help="detection-only calibration view (see what each object is labelled)",
+    )
     ap.add_argument("--no-voice", action="store_true")
     return run(ap.parse_args())
 

@@ -23,12 +23,30 @@ def store(tmp_path: Path) -> Store:
         yaml_content="procedure: test",
         step_count=3,
         steps=[
-            {"step_id": "s1", "ordinal": 0, "name": "Step 1",
-             "voice_prompt": "do step one", "preconditions": [], "requires": []},
-            {"step_id": "s2", "ordinal": 1, "name": "Step 2",
-             "voice_prompt": "do step two", "preconditions": ["s1"], "requires": []},
-            {"step_id": "s3", "ordinal": 2, "name": "Step 3",
-             "voice_prompt": "do step three", "preconditions": ["s2"], "requires": []},
+            {
+                "step_id": "s1",
+                "ordinal": 0,
+                "name": "Step 1",
+                "voice_prompt": "do step one",
+                "preconditions": [],
+                "requires": [],
+            },
+            {
+                "step_id": "s2",
+                "ordinal": 1,
+                "name": "Step 2",
+                "voice_prompt": "do step two",
+                "preconditions": ["s1"],
+                "requires": [],
+            },
+            {
+                "step_id": "s3",
+                "ordinal": 2,
+                "name": "Step 3",
+                "voice_prompt": "do step three",
+                "preconditions": ["s2"],
+                "requires": [],
+            },
         ],
     )
     yield s
@@ -37,9 +55,7 @@ def store(tmp_path: Path) -> Store:
 
 class TestProcedures:
     def test_upsert_procedure(self, store: Store) -> None:
-        row = store.conn.execute(
-            "SELECT * FROM procedures WHERE id = 'test_proc'"
-        ).fetchone()
+        row = store.conn.execute("SELECT * FROM procedures WHERE id = 'test_proc'").fetchone()
         assert row is not None
         assert dict(row)["name"] == "Test Procedure"
 
@@ -61,13 +77,17 @@ class TestProcedures:
             yaml_content="procedure: test v2",
             step_count=1,
             steps=[
-                {"step_id": "s1", "ordinal": 0, "name": "Only Step",
-                 "voice_prompt": "do it", "preconditions": [], "requires": []},
+                {
+                    "step_id": "s1",
+                    "ordinal": 0,
+                    "name": "Only Step",
+                    "voice_prompt": "do it",
+                    "preconditions": [],
+                    "requires": [],
+                },
             ],
         )
-        row = store.conn.execute(
-            "SELECT * FROM procedures WHERE id = 'test_proc'"
-        ).fetchone()
+        row = store.conn.execute("SELECT * FROM procedures WHERE id = 'test_proc'").fetchone()
         assert dict(row)["name"] == "Updated Procedure"
         steps = store.conn.execute(
             "SELECT * FROM procedure_steps WHERE procedure_id = 'test_proc'"
@@ -161,11 +181,17 @@ class TestStepRuns:
     def test_upsert_updates_on_conflict(self, store: Store) -> None:
         self._make_session(store)
         store.upsert_step_run(
-            session_id="sess-steps", step_id="s1", ordinal=0, state="active",
+            session_id="sess-steps",
+            step_id="s1",
+            ordinal=0,
+            state="active",
             activated_at="2026-09-20T13:00:00Z",
         )
         store.upsert_step_run(
-            session_id="sess-steps", step_id="s1", ordinal=0, state="complete",
+            session_id="sess-steps",
+            step_id="s1",
+            ordinal=0,
+            state="complete",
             confidence=0.91,
             resolved_at="2026-09-20T13:00:15Z",
             duration_ms=15000,

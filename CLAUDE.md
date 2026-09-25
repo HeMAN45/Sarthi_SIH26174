@@ -17,6 +17,7 @@ The design is settled and documented. Do not re-derive it.
 | [docs/04-UIUX-BRIEF.md](docs/04-UIUX-BRIEF.md) | Screens, components, tokens, states |
 | [docs/05-BACKEND-SCHEMA.md](docs/05-BACKEND-SCHEMA.md) | SQLite DDL, JSONL formats, hash chain |
 | [docs/06-IMPLEMENTATION-PLAN.md](docs/06-IMPLEMENTATION-PLAN.md) | Phases, ownership, descope ladder |
+| [docs/07-DATASET-GUIDE.md](docs/07-DATASET-GUIDE.md) | Props, shot list, labelling, training, what to report |
 | [docs/SIH26174-problem-statement.md](docs/SIH26174-problem-statement.md) | The verbatim brief |
 
 **These docs are the contract.** A code change that contradicts a doc must update the doc
@@ -54,13 +55,18 @@ in the same change. Docs that drift are worse than no docs.
 ## Structure
 
 ```
-core/        bus, config, types              reasoning/  procedure, predicates, engine
-perception/  capture, rackframe, detect,     runtime/    voice, telemetry, videoout, store
-             hands, pose                     server/     FastAPI, WebSocket
-ui/          React dashboard                 datagen/    Blender synthetic pipeline
-procedures/  PROC-A, PROC-B YAML             migrations/ numbered SQL
-tests/       unit, golden replay corpus      scripts/    prune, verify, export
+core/        bus, types                      reasoning/  schema, predicates, window, engine
+perception/  capture, detect, rackframe,     runtime/    store, telemetry, session, runner,
+             pose, hands, pipeline                       voice, videoout, training
+datagen/     vocabulary, dataset, autolabel, server/     app (FastAPI + WebSocket)
+             train, evaluate, export         ui/         React dashboard
+procedures/  PROC-A, PROC-B, demo YAML       migrations/ numbered SQL
+tests/       unit, golden replay corpus      scripts/    launchers only
 ```
+
+**`scripts/` holds launchers, never logic.** The import-linter contract covers
+`orbital_har` and nothing else, so perception or reasoning code living in a script is
+code outside the boundary it is supposed to obey. If a script grows a class, move it.
 
 ## Conventions
 
@@ -88,17 +94,34 @@ find yourself needing perception to test the engine, the seam has been broken.
 
 ## Current state
 
-**M0 Track B is done.** The reasoning spine works end to end with no camera and no models:
-procedure schema with strict validation, event bus with replay, seven predicate evaluators,
-the step state machine, a scenario simulator, five golden fixtures, and a CLI. 73 tests
-pass; ruff, the import-boundary contract and the offline guard are all green.
+**The pipeline runs end to end on a camera.** 181 tests pass; ruff, the import-boundary
+contract and the offline guard are all green.
 
-Verify with `uv run orbital-har demo proc_a_skip_s4`.
+Built and working:
 
-Next: **M1** — the remaining foundations (SQLite store, hash-chained telemetry writer and
-verifier, FastAPI skeleton with WebSocket, UI shell). Then footage collection gates M2.
+- **reasoning** — schema, seven predicates, step state machine, crew skip/override,
+  calibrated abstention, free-float advisory (D-07), golden replay corpus.
+- **perception** — `rackframe` (ArUco + homography to rack millimetres, input-frame
+  canonicalization), `pose` (YOLO11-pose), `hands` (palm-from-forearm plus geometric
+  contact inference), `detect` (boxes or on-device state classifier), `capture`,
+  and `pipeline` which joins them into event payloads.
+- **runtime** — SQLite store with migrations, hash-chained telemetry and verifier,
+  `session.LiveSession` (the composition root), `voice` (Piper, pre-synthesized,
+  pre-emptible), `videoout` (mp4 + RTSP), `training` (on-device classifier).
+- **server** — one FastAPI app; live endpoints degrade to 503 without a session.
+- **ui** — React dashboard: Mission HUD, Experiment builder, Train, Sessions.
 
-Not yet built: everything under `perception/`, `runtime/`, `server/`, `ui/`, `datagen/`.
+Verify with `uv run orbital-har demo proc_a_skip_s4`, then `uv run pytest`.
+
+**PROC-A — the ISRO sample experiment — runs live.** `tests/test_pipeline.py` is the
+proof: real rack localisation and contact inference satisfying its `contact` and `near`
+steps with no camera and no detector in the loop.
+
+**The remaining deliverable is the trained model.** Detection is still a pretrained
+stand-in (COCO / YOLO-World). Props to footage to labels to a trained 11-class BAS model
+is the critical path, and nothing downstream of it can start until the prop kit exists.
+`datagen/` (Blender synthetic pipeline) is not built and may be descoped in favour of
+real footage — decide before committing to it.
 
 ## Working notes
 

@@ -20,6 +20,21 @@ Everything runs offline on an edge device. No cloud, no network, no exceptions.
 uv sync --group dev
 ```
 
+### Voice (optional, but it is how alerts are meant to be heard)
+
+```bash
+uv pip install piper-tts
+uv run python -m piper.download_voices en_US-lessac-medium --data-dir models/voices
+```
+
+Speech then runs **on the device**: every prompt a procedure can utter is
+synthesized to WAV when the procedure loads, so an alert only has to play a
+file. Alerts pre-empt step prompts. Without a voice model the dashboard falls
+back to browser speech and says so on screen — which also means alerts are only
+heard while a browser tab is open, so install the voice for anything
+demo-facing. The model is a ~60 MB local file; nothing reaches the network at
+run time.
+
 ### 1. Live web dashboard (recommended)
 
 ```bash
@@ -116,6 +131,31 @@ Start with [CLAUDE.md](CLAUDE.md) for the invariants, then [docs/](docs/README.m
 > separate from feature work.
 
 ---
+
+## Training the BAS-prop detector
+
+The pipeline is built; it needs footage. See
+[docs/07-DATASET-GUIDE.md](docs/07-DATASET-GUIDE.md) for the prop kit and shot list.
+
+```bash
+uv run orbital-har dataset init --root datasets/bas   # class list + layout
+# drop frames into datasets/bas/raw/ as take03_0147.jpg
+uv run orbital-har dataset label --root datasets/bas  # zero-shot pre-labels
+uv run orbital-har dataset split --root datasets/bas  # split by clip, not frame
+uv run orbital-har dataset stats --root datasets/bas  # readiness report
+uv run orbital-har train  --data datasets/bas/data.yaml
+uv run orbital-har eval   --weights runs/bas/weights/best.pt --save
+uv run orbital-har export runs/bas/weights/best.pt --format onnx
+```
+
+The nine classes are derived from the procedure YAML, never hardcoded. Training
+augments rotation to ±180° with vertical flips — there is no floor in orbit, and
+that is the cheap part of the orientation requirement.
+
+`eval` works today without any footage: it scores step verdicts and alert recall
+against the golden corpus and fits the abstention thresholds. It **refuses** to
+emit fitted thresholds from a corpus in which every verdict is correct, because
+"the lowest confidence present" is not a calibration.
 
 ## Status
 

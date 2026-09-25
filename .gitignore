@@ -31,3 +31,9 @@ ui/dist/
 .env
 .DS_Store
 Thumbs.db
+
+# Piper voice models — 60 MB+ binaries, fetched at setup time:
+#   uv run python -m piper.download_voices en_US-lessac-medium --data-dir models/voices
+models/voices/
+# Pre-synthesized prompt cache, rebuilt on demand from the voice model.
+data/voice/

@@ -87,10 +87,10 @@ class TestTelemetryWriter:
         with TelemetryWriter(telem_path) as tw:
             tw.write("event1", {})
             tw.write("event2", {})
-        
+
         file_size = telem_path.stat().st_size
         assert file_size > 0
-        
+
         with TelemetryWriter(telem_path) as tw2:
             assert tw2.bytes_written == file_size
 
@@ -98,14 +98,14 @@ class TestTelemetryWriter:
         with TelemetryWriter(telem_path) as tw:
             tw.write("event1", {})
             tw.write("event2", {})
-        
+
         # Corrupt the file
         lines = telem_path.read_text().strip().split("\n")
         record = json.loads(lines[1])
         record["ev"] = "tampered"
         lines[1] = json.dumps(record)
         telem_path.write_text("\n".join(lines) + "\n")
-        
+
         with (
             pytest.raises(RuntimeError, match="existing telemetry chain is corrupted"),
             TelemetryWriter(telem_path),

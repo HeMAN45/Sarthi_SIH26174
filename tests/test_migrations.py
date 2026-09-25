@@ -26,9 +26,7 @@ class TestMigrate:
         conn = migrate(tmp_db, migrations_dir=migrations_dir)
         tables = {
             row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }
         assert "sessions" in tables
         assert "step_runs" in tables
@@ -71,12 +69,14 @@ class TestMigrate:
         """Simulate applying two separate migration files."""
         mdir = tmp_path / "migrations"
         mdir.mkdir()
-        (mdir / "001_base.sql").write_text(textwrap.dedent("""\
+        (mdir / "001_base.sql").write_text(
+            textwrap.dedent("""\
             CREATE TABLE IF NOT EXISTS schema_version (
                 version INTEGER NOT NULL, applied_at TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS test_one (id INTEGER PRIMARY KEY);
-        """))
+        """)
+        )
         conn = migrate(tmp_db, migrations_dir=mdir)
         assert conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0] == 1
         conn.close()
@@ -88,9 +88,7 @@ class TestMigrate:
         assert conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0] == 2
         tables = {
             row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }
         assert "test_two" in tables
         conn.close()

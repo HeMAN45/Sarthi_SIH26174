@@ -875,7 +875,7 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115,<1" },
     { name = "mediapipe", marker = "extra == 'perception'", specifier = ">=0.10,<0.11" },
     { name = "opencv-contrib-python", marker = "extra == 'perception'", specifier = ">=4.10,<5" },
-    { name = "piper-tts", marker = "extra == 'voice'", specifier = ">=1.2,<2" },
+    { name = "piper-tts", marker = "extra == 'voice'", specifier = ">=1.8,<2" },
     { name = "pydantic", specifier = ">=2.9,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "rich", specifier = ">=13,<15" },

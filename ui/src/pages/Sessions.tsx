@@ -30,7 +30,7 @@ export default function Sessions() {
   return (
     <div className="page">
       <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, .8fr) 1.2fr", gap: 18 }}>
-        <div className="card card-pad">
+        <div className="panel panel-pad">
           <SectionTitle right={<button className="btn" style={{ padding: "5px 10px" }} onClick={load}>↻</button>}>
             Sessions
           </SectionTitle>
@@ -46,24 +46,24 @@ export default function Sessions() {
                 }}>
                 <div className="mono" style={{ fontSize: 12 }}>{r.id}</div>
                 <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-                  <span className={`pill ${r.status === "complete" ? "pill-ok" : ""}`}>{r.status}</span>
-                  {!!r.steps_skipped && <span className="pill pill-bad">{r.steps_skipped} skipped</span>}
-                  {!!r.alert_count && <span className="pill">{r.alert_count} alerts</span>}
+                  <span className={`chip ${r.status === "complete" ? "chip-ok" : "chip-idle"}`}>{r.status}</span>
+                  {!!r.steps_skipped && <span className="chip chip-alert">{r.steps_skipped} skipped</span>}
+                  {!!r.alert_count && <span className="chip chip-idle">{r.alert_count} alerts</span>}
                 </div>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="card card-pad">
+        <div className="panel panel-pad">
           {!sel && <Empty>Select a session to inspect its telemetry.</Empty>}
           {sel && (
             <div className="fade-in">
               <SectionTitle>Session · {sel.session.id}</SectionTitle>
 
-              <div className="stats-row" style={{ marginTop: 0, marginBottom: 16 }}>
-                <div className="card card-pad" style={{ padding: 12 }}>
-                  <div className="eyebrow" style={{ color: "var(--dim)" }}>Telemetry</div>
+              <div className="tiles" style={{ marginTop: 0, marginBottom: 16 }}>
+                <div className="panel panel-pad" style={{ padding: 12 }}>
+                  <div className="label" style={{ color: "var(--dim)" }}>Telemetry</div>
                   <div className="mono" style={{ fontSize: 18, marginTop: 4 }}>
                     {sel.chain ? fmtBytes(sel.chain.bytes_written) : "—"}
                   </div>
@@ -71,8 +71,8 @@ export default function Sessions() {
                     {sel.chain?.record_count ?? 0} records
                   </div>
                 </div>
-                <div className="card card-pad" style={{ padding: 12 }}>
-                  <div className="eyebrow" style={{ color: "var(--dim)" }}>Outcome</div>
+                <div className="panel panel-pad" style={{ padding: 12 }}>
+                  <div className="label" style={{ color: "var(--dim)" }}>Outcome</div>
                   <div className="mono" style={{ fontSize: 18, marginTop: 4 }}>
                     {sel.session.steps_complete ?? 0}/{sel.session.steps_total ?? 0}
                   </div>
@@ -96,10 +96,10 @@ export default function Sessions() {
                     padding: "11px 13px", borderRadius: "var(--r-sm)", marginBottom: 16, fontSize: 13,
                     background: verdict.startsWith("✓") ? "rgba(34,197,94,.1)"
                               : verdict.startsWith("✗") ? "rgba(239,68,68,.12)" : "#0d141d",
-                    border: `1px solid ${verdict.startsWith("✓") ? "var(--ok)"
-                              : verdict.startsWith("✗") ? "var(--bad)" : "var(--line)"}`,
-                    color: verdict.startsWith("✓") ? "var(--ok)"
-                          : verdict.startsWith("✗") ? "var(--bad)" : "var(--dim)",
+                    border: `1px solid ${verdict.startsWith("✓") ? "var(--accent)"
+                              : verdict.startsWith("✗") ? "var(--alert)" : "var(--line)"}`,
+                    color: verdict.startsWith("✓") ? "var(--accent)"
+                          : verdict.startsWith("✗") ? "var(--alert)" : "var(--dim)",
                   }}>
                   {verdict}
                 </div>
@@ -114,8 +114,8 @@ export default function Sessions() {
                   <span className="mono" style={{ color: "var(--faint)", width: 28 }}>{s.ordinal + 1}</span>
                   <span style={{ flex: 1 }}>{s.step_id}</span>
                   <span className="mono" style={{
-                    color: s.state === "complete" ? "var(--ok)"
-                          : s.state === "skipped" || s.state === "out_of_order" ? "var(--bad)"
+                    color: s.state === "complete" ? "var(--accent)"
+                          : s.state === "skipped" || s.state === "out_of_order" ? "var(--alert)"
                           : "var(--dim)",
                   }}>{s.state}</span>
                 </div>
@@ -125,7 +125,7 @@ export default function Sessions() {
                 <>
                   <SectionTitle>Alerts</SectionTitle>
                   {sel.alerts.map((a, i) => (
-                    <div key={i} style={{ fontSize: 12.5, padding: "6px 0", color: "var(--bad)" }}>
+                    <div key={i} style={{ fontSize: 12.5, padding: "6px 0", color: "var(--alert)" }}>
                       ⚠ {a.message}
                     </div>
                   ))}

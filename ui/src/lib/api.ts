@@ -11,6 +11,21 @@ export interface Step {
   voice: string;
   state: StepState;
   confidence: number;
+  ordinal: number;
+  duration_s: number | null;
+  evidence: string[];
+  reason: string;
+}
+
+/** Which perception subsystems this procedure needs, and whether they work.
+ *  Surfaced so a degraded run is visible rather than silently wrong. */
+export interface Perception {
+  rack_required: boolean;
+  rack_locked: boolean;
+  pose_required: boolean;
+  pose_ok: boolean;
+  pose_error: string | null;
+  detector: string;
 }
 
 export interface Alert {
@@ -30,11 +45,24 @@ export interface SessionStats {
   closed: boolean;
 }
 
+/** On-device speech. When unavailable the browser speaks instead, and says why. */
+export interface VoiceStatus {
+  available: boolean;
+  muted: boolean;
+  reason: string | null;
+  model: string;
+  player: string | null;
+  prewarmed: number;
+  spoken: number;
+}
+
 export interface LiveState {
   procedure: string;
   mode: string;
   open_vocab: boolean;
   fps: number;
+  perception: Perception;
+  voice: VoiceStatus;
   session: SessionStats | null;
   steps: Step[];
   next: { id: string; name: string; voice: string } | null;
@@ -55,6 +83,12 @@ export const api = {
   skip: () => fetch("/api/skip", { method: "POST" }),
   restart: (mode: "clean" | "strict" = "clean") =>
     fetch(`/api/restart?mode=${mode}`, { method: "POST" }),
+  /** Seal the current run and arm a fresh one. The camera keeps running. */
+  endRun: () => fetch("/api/end-run", { method: "POST" }),
+  /** Seal the run, release the camera, exit the process. */
+  shutdown: () => fetch("/api/shutdown", { method: "POST" }),
+  /** Mute on the device, where the voice actually is. */
+  mute: (muted: boolean) => fetch(`/api/voice/mute?muted=${muted}`, { method: "POST" }),
 
   classes: () => fetch("/api/classes").then(j<string[]>),
   build: (sequence: string[], name?: string) =>

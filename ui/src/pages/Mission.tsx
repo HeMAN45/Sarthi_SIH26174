@@ -1,7 +1,7 @@
 import { api, fmtBytes } from "../lib/api";
 import type { LiveState } from "../lib/api";
 import { useAlertBanner } from "../lib/useLive";
-import { Empty, SectionTitle, Stat, StepRow } from "../components/Bits";
+import { Chip, Empty, SectionTitle, StepRow, Tile } from "../components/Bits";
 
 export default function Mission({
   state, resetSpeech,
@@ -11,122 +11,159 @@ export default function Mission({
 
   const act = async (fn: () => Promise<unknown>) => { resetSpeech(); await fn(); };
 
-  // Downlink argument: telemetry vs the video we did NOT have to send.
+  // The downlink argument, measured rather than estimated: bytes of telemetry
+  // against the bytes of video we did not have to send. This is the headline
+  // number of the whole project, so it goes where people actually look.
   const bytes = s?.session?.bytes ?? 0;
+  const records = s?.session?.records ?? 0;
   const frames = s?.session?.frames ?? 0;
   const videoBytes = s?.session?.video_bytes ?? 0;
   const ratio = bytes > 0 && videoBytes > 0 ? Math.round(videoBytes / bytes) : 0;
 
-  return (
-    <div className="page">
-      <div className="grid-mission">
-        {/* ---------------------------------------------------------- video */}
-        <div>
-          <div className="card" style={{ overflow: "hidden", position: "relative" }}>
-            {showAlert && s?.alert && (
-              <div
-                className="fade-in"
-                style={{
-                  position: "absolute", left: 0, right: 0, top: 0, zIndex: 5,
-                  background: "linear-gradient(90deg,#b91c1c,#ef4444)",
-                  color: "#fff", padding: "13px 18px", fontWeight: 700,
-                  display: "flex", alignItems: "center", gap: 10,
-                }}
-              >
-                <span style={{ fontSize: 17 }}>⚠</span>
-                <span>{s.alert.message}</span>
-                <span style={{ flex: 1 }} />
-                <span className="mono" style={{ fontSize: 11, opacity: .85 }}>
-                  {s.alert.kind.replace("_", " ")}
-                </span>
-              </div>
-            )}
-            <img src="/video" alt="live feed" style={{ width: "100%", display: "block", background: "#000" }} />
-            <div
-              className="mono"
-              style={{
-                position: "absolute", left: 12, bottom: 12, fontSize: 10.5,
-                background: "rgba(0,0,0,.6)", padding: "5px 10px", borderRadius: 6,
-                color: "var(--dim)",
-              }}
-            >
-              detector: stand-in model · trained BAS model = next milestone
-            </div>
-          </div>
+  const running = !!s?.session;
+  const p = s?.perception;
+  const done = s?.steps.filter((x) => x.state === "complete").length ?? 0;
+  const total = s?.steps.length ?? 0;
 
-          <div className="stats-row">
-            <Stat label="Telemetry" value={fmtBytes(bytes)} sub={`${s?.session?.records ?? 0} records`} tone="accent" />
-            <Stat label="Downlink saved" value={ratio ? `${ratio}×` : "—"}
-                  sub={videoBytes ? `vs ${fmtBytes(videoBytes)} of video` : "vs raw video"} tone="ok" />
-            <Stat label="Recording" value={frames ? `${frames} f` : "—"}
-                  sub={s?.session?.rtsp ? "＋ RTSP live" : "local mp4"} />
-            <Stat label="Throughput" value={`${s?.fps ?? 0} fps`} sub={s?.mode ?? ""} />
+  // Degradation is announced, never silent (invariant #10).
+  const degraded: string[] = [];
+  if (p?.rack_required && !p.rack_locked) degraded.push("rack not locked — positions unavailable");
+  if (p?.pose_required && !p.pose_ok) degraded.push("pose unavailable — contact steps cannot verify");
+  if (s && !s.voice.available) degraded.push("no on-device voice — alerts speak in this browser only");
+
+  return (
+    <div className="hud">
+      {/* ======================================================= left: video */}
+      <div className="hud-left">
+        <div className="viewport">
+          {showAlert && s?.alert && (
+            <div className="alert-toast fade-in">
+              <span style={{ fontSize: 17 }}>⚠</span>
+              <span style={{ flex: 1 }}>{s.alert.message}</span>
+              <span className="mono" style={{ fontSize: 11, opacity: 0.8 }}>
+                {s.alert.kind.replace(/_/g, " ")}
+              </span>
+            </div>
+          )}
+          <img src="/video" alt="live camera feed" />
+          <div className="viewport-tag">
+            detector: {p?.detector ?? "stand-in"}
+            {p?.rack_required && ` · rack ${p.rack_locked ? "locked" : "lost"}`}
+            {p?.pose_required && ` · pose ${p.pose_ok ? "on" : "off"}`}
+            {s?.voice && ` · voice ${s.voice.available ? s.voice.model : "browser"}`}
           </div>
         </div>
 
-        {/* ---------------------------------------------------------- panel */}
-        <div>
-          <div className="card card-pad">
-            <SectionTitle>Next step</SectionTitle>
-            <div style={{ fontSize: 19, lineHeight: 1.35, minHeight: 52 }}>
-              {s?.complete
-                ? <span style={{ color: "var(--ok)", fontWeight: 700 }}>✓ Procedure complete</span>
-                : s?.next?.name ?? <span className="muted">waiting…</span>}
-            </div>
+        {/* Idle is a state with a name. An em-dash reads as broken. */}
+        <div className="tiles">
+          <Tile
+            label="Downlink saved"
+            value={ratio ? `${ratio}×` : running ? "measuring" : "no run"}
+            sub={videoBytes ? `vs ${fmtBytes(videoBytes)} of video` : "telemetry replaces video"}
+            tone="ok"
+            idle={!ratio}
+          />
+          <Tile
+            label="Telemetry"
+            value={bytes ? fmtBytes(bytes) : "0 B"}
+            sub={running ? `${records} records${s?.session?.closed ? " · sealed" : ""}` : "no run"}
+            tone="info"
+            idle={!bytes}
+          />
+          <Tile
+            label="Recording"
+            value={frames ? `${frames} f` : "not recording"}
+            sub={s?.session?.rtsp ? "local mp4 + RTSP" : running ? "local mp4" : "starts with the run"}
+            idle={!frames}
+          />
+          <Tile
+            label="Progress"
+            value={total ? `${done} / ${total}` : "no procedure"}
+            sub={s?.mode ? `${s.mode} mode` : ""}
+            tone={s?.complete ? "ok" : undefined}
+            idle={!total}
+          />
+        </div>
+      </div>
 
-            <div style={{ display: "flex", gap: 9, marginTop: 16, flexWrap: "wrap" }}>
-              <button className="btn btn-primary" onClick={() => act(() => api.restart("clean"))}>
-                ↻ New run
-              </button>
-              <button className="btn btn-danger" onClick={() => act(api.skip)}>
-                ⤼ Skip current step
-              </button>
-              <button className="btn" onClick={() => act(() => api.restart("strict"))}>
-                ⚠ Out-of-order run
-              </button>
-            </div>
+      {/* ====================================================== right: state */}
+      <div className="hud-right">
+        {/* The single most important string on the screen. It is never below
+            the fold, and it is never smaller than anything around it. */}
+        <div className="panel panel-pad nextstep">
+          <div className="label">{s?.complete ? "Run complete" : "Next step"}</div>
+          <div
+            className="nextstep-text"
+            style={{ color: s?.complete ? "var(--accent)" : undefined }}
+          >
+            {s?.complete
+              ? "✓ Procedure complete"
+              : s?.next?.name ?? <span style={{ color: "var(--faint)" }}>waiting for a procedure…</span>}
           </div>
-
-          <div className="card card-pad" style={{ marginTop: 16 }}>
-            <SectionTitle
-              right={<span className="mono" style={{ fontSize: 11, color: "var(--dim)" }}>
-                {s?.procedure ?? ""}
-              </span>}
-            >
-              Procedure
-            </SectionTitle>
-            {s && s.steps.length > 0
-              ? s.steps.map((st, i) => (
-                  <StepRow key={st.id} index={i} name={st.name} state={st.state}
-                           confidence={st.confidence} />
-                ))
-              : <Empty>No procedure loaded. Build one from the Build tab.</Empty>}
-          </div>
-
-          {s?.complete && (
-            <div className="card card-pad fade-in"
-                 style={{ marginTop: 16, borderColor: "var(--ok)" }}>
-              <SectionTitle>Run summary</SectionTitle>
-              {[
-                ["Steps total", s.summary.total, undefined],
-                ["Complete", s.summary.complete, "var(--ok)"],
-                ["Skipped", s.summary.skipped, s.summary.skipped ? "var(--bad)" : undefined],
-                ["Out of order", s.summary.out_of_order, s.summary.out_of_order ? "var(--bad)" : undefined],
-                ["Alerts raised", s.summary.alerts, undefined],
-                ["Duration", `${s.summary.duration}s`, undefined],
-              ].map(([k, v, c]) => (
-                <div key={String(k)}
-                     style={{ display: "flex", justifyContent: "space-between",
-                              padding: "7px 0", borderBottom: "1px dashed var(--line-soft)" }}>
-                  <span className="muted" style={{ fontSize: 13 }}>{k}</span>
-                  <span className="mono" style={{ fontWeight: 700, color: (c as string) ?? "var(--txt)" }}>
-                    {v as number}
-                  </span>
-                </div>
-              ))}
+          {!s?.complete && s?.next?.voice && (
+            <div className="nextstep-voice">“{s.next.voice}”</div>
+          )}
+          {degraded.length > 0 && (
+            <div className="banner-warn" style={{ marginTop: 11 }}>
+              <span>⚠</span>
+              <span>{degraded.join(" · ")}</span>
             </div>
           )}
         </div>
+
+        <div className="panel panel-pad" style={{ display: "grid", gridTemplateRows: "auto 1fr", minHeight: 0 }}>
+          <SectionTitle
+            right={
+              <span className="mono" style={{ fontSize: 11, color: "var(--faint)" }}>
+                {s?.procedure ?? ""}
+              </span>
+            }
+          >
+            Procedure
+          </SectionTitle>
+          <div className="steps">
+            {s && s.steps.length > 0 ? (
+              s.steps.map((st, i) => <StepRow key={st.id} step={st} index={i} />)
+            ) : (
+              <Empty>
+                No procedure loaded.
+                <br />
+                Open <strong>Experiment</strong> to build one.
+              </Empty>
+            )}
+          </div>
+        </div>
+
+        {s?.complete ? (
+          <div className="panel panel-pad fade-in">
+            <SectionTitle right={<Chip tone="ok">SEALED</Chip>}>Run summary</SectionTitle>
+            <div className="kv"><span>Complete</span><span style={{ color: "var(--accent)" }}>{s.summary.complete}</span></div>
+            <div className="kv"><span>Skipped</span><span style={{ color: s.summary.skipped ? "var(--alert)" : undefined }}>{s.summary.skipped}</span></div>
+            <div className="kv"><span>Out of sequence</span><span style={{ color: s.summary.out_of_order ? "var(--alert)" : undefined }}>{s.summary.out_of_order}</span></div>
+            <div className="kv"><span>Alerts raised</span><span>{s.summary.alerts}</span></div>
+            <div className="kv"><span>Duration</span><span>{s.summary.duration}s</span></div>
+            <button className="btn btn-primary" style={{ width: "100%", marginTop: 11 }}
+                    onClick={() => act(() => api.restart("clean"))}>
+              ↻ Start a new run
+            </button>
+          </div>
+        ) : (
+          <div className="controls">
+            <button className="btn btn-primary" onClick={() => act(() => api.restart("clean"))}>
+              ↻ New run
+            </button>
+            <button className="btn btn-caution" onClick={() => act(api.skip)}>
+              ⤼ Skip step
+            </button>
+            <button className="btn" onClick={() => act(() => api.restart("strict"))}>
+              ⚠ Strict mode
+            </button>
+            <button className="btn btn-alert" onClick={() => act(api.endRun)}
+                    title="seal this run's telemetry and start fresh">
+              ■ End run
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

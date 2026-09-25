@@ -64,7 +64,7 @@ export default function Train({ resetSpeech }: { resetSpeech: () => void }) {
     <div className="page">
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         {/* classes */}
-        <div className="card card-pad">
+        <div className="panel panel-pad">
           <SectionTitle>Classes · one per object or state</SectionTitle>
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             <input className="input" placeholder="e.g. open_book" value={newName}
@@ -82,10 +82,10 @@ export default function Train({ resetSpeech }: { resetSpeech: () => void }) {
 
           {!hasBg && (
             <div style={{
-              background: "rgba(239,68,68,.1)", border: "1px solid var(--bad)",
+              background: "rgba(239,68,68,.1)", border: "1px solid var(--alert)",
               borderRadius: "var(--r-sm)", padding: 12, marginBottom: 14, fontSize: 12.5, lineHeight: 1.6,
             }}>
-              <b style={{ color: "var(--bad)" }}>A “background” class is required.</b> A classifier
+              <b style={{ color: "var(--alert)" }}>A “background” class is required.</b> A classifier
               always returns one of its classes — without images of the empty scene it will
               confidently guess a real object when nothing is there.
               <button className="btn" style={{ marginTop: 10 }}
@@ -105,7 +105,7 @@ export default function Train({ resetSpeech }: { resetSpeech: () => void }) {
               <span style={{ flex: 1, fontSize: 13.5 }}>
                 {c.background && <span title="negative class">🚫 </span>}{c.name}
               </span>
-              <span className="mono" style={{ fontSize: 11, color: c.count < 10 ? "var(--warn)" : "var(--dim)" }}>
+              <span className="mono" style={{ fontSize: 11, color: c.count < 10 ? "var(--caution)" : "var(--dim)" }}>
                 {c.count} imgs
               </span>
               <button className="btn" style={{ padding: "4px 9px", fontSize: 11 }}
@@ -133,14 +133,14 @@ export default function Train({ resetSpeech }: { resetSpeech: () => void }) {
                          load();
                        }} />
               </label>
-              <button className="btn btn-danger" style={{ padding: "4px 9px", fontSize: 11 }}
+              <button className="btn btn-alert" style={{ padding: "4px 9px", fontSize: 11 }}
                       onClick={async () => { await api.delClass(c.name); load(); }}>✕</button>
             </div>
           ))}
         </div>
 
         {/* camera + training */}
-        <div className="card card-pad">
+        <div className="panel panel-pad">
           <SectionTitle>Camera · frame the object, then Snap</SectionTitle>
           <img src="/video" alt="preview"
                style={{ width: "100%", borderRadius: "var(--r-sm)", border: "1px solid var(--line)",
@@ -178,7 +178,7 @@ export default function Train({ resetSpeech }: { resetSpeech: () => void }) {
           {status && !training && status.state !== "idle" && (
             <div className="mono" style={{
               fontSize: 12.5, marginBottom: 12,
-              color: status.state === "done" ? "var(--ok)" : "var(--bad)",
+              color: status.state === "done" ? "var(--accent)" : "var(--alert)",
             }}>
               {status.state === "done" ? "✓ " : "✗ "}{status.message}
             </div>
@@ -187,7 +187,7 @@ export default function Train({ resetSpeech }: { resetSpeech: () => void }) {
           {busy && <div className="mono" style={{ fontSize: 12, color: "var(--dim)", marginBottom: 12 }}>{busy}</div>}
 
           {ready && (
-            <button className="btn btn-ok" style={{ width: "100%", justifyContent: "center" }} onClick={use}>
+            <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={use}>
               ▶ Use this trained model live
             </button>
           )}

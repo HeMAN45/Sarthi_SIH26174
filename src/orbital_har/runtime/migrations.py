@@ -36,9 +36,7 @@ def _discover(directory: Path) -> list[tuple[int, Path]]:
 def _current_version(conn: sqlite3.Connection) -> int:
     """Return the latest applied migration version, or 0 if none."""
     try:
-        row = conn.execute(
-            "SELECT MAX(version) FROM schema_version"
-        ).fetchone()
+        row = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()
         return row[0] or 0 if row else 0
     except sqlite3.OperationalError:
         return 0

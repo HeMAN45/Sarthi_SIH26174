@@ -7,12 +7,15 @@ transitions to the Store and Telemetry logs, while broadcasting to the UI.
 from __future__ import annotations
 
 import dataclasses
+import time
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from typing import Any
 
 from orbital_har.core.bus import EventBus
 from orbital_har.core.types import Event, EventType
+from orbital_har.perception.capture import Camera
+from orbital_har.perception.pipeline import PerceptionPipeline
 from orbital_har.reasoning.engine import Engine
 from orbital_har.runtime.store import Store
 from orbital_har.runtime.telemetry import TelemetryWriter
@@ -46,7 +49,7 @@ class SessionRunner:
 
     def _on_bus_event(self, event: Event) -> None:
         """Handle events published to the bus.
-        
+
         The Engine processes perception events and emits step_state / alert events.
         We only persist these lifecycle/transition/alert events to SQLite and Telemetry.
         """
@@ -93,24 +96,71 @@ class SessionRunner:
             # Engine verdicts are emitted through the same bus.
             self.bus.publish(event)
             self.engine.on_event(event)
-            
+
         # Flush the engine at the end of the stream
         self.engine.flush()
-        
+
         self._finalize_session()
 
-    def start_live(self) -> None:
-        """Start a live session."""
-        pass # To be implemented when live perception is added.
+    def start_live(
+        self,
+        pipeline: PerceptionPipeline,
+        camera: Camera,
+        *,
+        wanted: set[str],
+        min_area: float = 0.06,
+        max_seconds: float | None = None,
+        stop: Callable[[], bool] | None = None,
+    ) -> None:
+        """Drive the engine from a live camera, headless.
+
+        The dashboard path is :class:`orbital_har.runtime.session.LiveSession`,
+        which also owns voice, recording and HTTP state. This is the minimal
+        one: camera to bus to engine to telemetry, with nothing watching a
+        screen. That is the shape the edge device actually runs in, and it is
+        the shape that proves the seam holds — perception publishes, the engine
+        consumes, and neither knows the other exists.
+
+        Ends on camera loss, ``max_seconds``, or ``stop()`` returning True. The
+        session is finalized either way: a run that ends unsealed is a run whose
+        telemetry cannot be verified.
+        """
+        if not camera.opened and not camera.open():
+            raise RuntimeError(camera.failure or "camera unavailable")
+
+        started = time.monotonic()
+        frame_id = 0
+        try:
+            while True:
+                if stop is not None and stop():
+                    break
+                if max_seconds is not None and time.monotonic() - started >= max_seconds:
+                    break
+                frame = camera.read()
+                if frame is None:
+                    break
+
+                frame_id += 1
+                now = time.time()
+                observation = pipeline.observe(frame, frame_id, wanted=wanted, min_area=min_area)
+                for src, type_, payload in observation.emissions:
+                    # emit() numbers and publishes; the engine's own verdicts
+                    # reach the bus through engine.bus, so they are persisted
+                    # exactly once.
+                    self.engine.on_event(self.bus.emit(src, type_, payload, t=now))
+        finally:
+            self.engine.flush()
+            camera.release()
+            self._finalize_session()
 
     def _finalize_session(self) -> None:
         """Update the telemetry chain metadata in the store when done."""
         summary = self.engine.summary()
         counts = summary["counts"]
-        
+
         self.telemetry.write("session_end", {"summary": summary}, t=datetime.now(UTC).isoformat())
         self.telemetry.close()
-        
+
         self.store.close_session(
             session_id=self.session_id,
             status="complete" if summary["complete"] else "aborted",
@@ -121,7 +171,7 @@ class SessionRunner:
             steps_overridden=counts.get("overridden", 0),
             alert_count=sum(1 for _ in self.store.get_alerts(self.session_id)),
         )
-        
+
         self.store.upsert_telemetry_chain(
             session_id=self.session_id,
             genesis_hash=self.telemetry.genesis_hash,

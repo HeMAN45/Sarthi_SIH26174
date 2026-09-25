@@ -60,14 +60,15 @@ class TelemetryWriter:
     def open(self) -> TelemetryWriter:
         if self.path.exists() and self.path.stat().st_size > 0:
             from orbital_har.runtime.telemetry import verify
+
             res = verify(self.path)
             if not res.ok:
                 raise RuntimeError(
                     f"Cannot append: existing telemetry chain is corrupted: {res.error}"
                 )
-            
+
             self._bytes_written = self.path.stat().st_size
-            
+
             with self.path.open("r", encoding="utf-8") as f:
                 last_line = ""
                 for line in f:

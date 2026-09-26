@@ -75,6 +75,17 @@ hash, start recording and streaming, announce step 1, mark step 1 `ACTIVE`.
 On **Complete** or **Aborted**: flush telemetry, write the closing record, finalise video
 segments, compute session summary, persist, emit `system.session_end`.
 
+**As built (2026-09-26).** The camera belongs to a run. The console starts in **Ready**
+with the camera *off*; **New run** (`POST /api/session/start`) powers it and begins
+judging; **End run** (`POST /api/session/stop`) seals the chain and releases the device,
+returning to Ready. **Complete** seals the run but keeps the camera on for the debrief.
+Starting while a run is live is a restart: the old run is sealed first, judged by its own
+engine, before the new one begins. Between runs the camera can be powered alone as a
+*preview* (`POST /api/camera`) for training capture — it perceives but judges and logs
+nothing. The UI shows **Arming** from Start until the first frame arrives; no run is
+logged without frames. The rack-lock wait described above is **not yet implemented**.
+`--autostart` restores the old start-on-launch behaviour.
+
 ---
 
 ## 4. Main loop
@@ -263,14 +274,19 @@ Unrecognised speech is silently ignored — never guessed at.
 ## 9. Procedure hot-swap (D-02)
 
 ```
-1  Session must be Ready or Complete (never mid-run)
-2  POST /api/procedure/load { path }
+1  A live run is sealed first — the new procedure never inherits its steps
+2  POST /api/procedure/load { id, start, force }     id = a file stem in procedures/
 3  Validate → reject with field path on failure, keep current procedure loaded
 4  Check required vocabulary ⊆ loaded detector classes
-     mismatch → reject, name the missing classes
+     mismatch → 409, name the missing classes; force=true is the operator overriding
 5  Compile predicates, swap engine config, reset step states
-6  Push new procedure to UI over WebSocket
+6  start=true begins a run; otherwise the console returns to Ready
+7  Push new procedure to UI over WebSocket
 ```
+
+`GET /api/procedures` lists the library with each file's description (its leading YAML
+comment), step count, rack/pose needs and the classes the current detector cannot see,
+so the refusal in step 4 is visible before anyone presses Run.
 
 Perception models are **not** reloaded — that is the whole point. Budget ≤10 s (NFR-11).
 
@@ -295,18 +311,28 @@ lost. Video loses at most one 60 s segment. On restart, sessions left open are m
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/health` | Subsystem status, FPS, latency, memory |
+| GET | `/api/health` | Subsystem status, phase, camera state |
 | GET | `/api/procedure` | Current procedure and step states |
+| GET | `/api/procedures` | Procedure library, with what each needs (§9) |
 | POST | `/api/procedure/load` | Hot-swap (§9) |
-| POST | `/api/session/start` | Begin |
-| POST | `/api/session/stop` | End |
+| POST | `/api/session/start` | Begin: power the camera, start judging (restart if live) |
+| POST | `/api/session/stop` | End: seal the chain, release the camera |
+| POST | `/api/camera` | Camera preview without a run (training capture) |
+| POST | `/api/camera/mirror` | Mirror the displayed picture (selfie view); perception never flips |
+| GET | `/api/train/classes` | Training set per class, readiness, data advice |
+| POST | `/api/train/prepare` | Create the classes a library procedure needs, plus background |
+| POST | `/api/train/start` | Train the on-device classifier (held-out split, per-class report) |
+| GET | `/api/train/predict` | Test stage: the model's verdict on the current frame, by the run rule |
+| POST | `/api/train/use` | Deploy the classifier and start a run, optionally with a named procedure |
+| POST | `/api/skip` | Crew skip of the current step |
+| POST | `/api/shutdown` | Seal, release the camera, exit the process |
 | POST | `/api/session/override` | Crew override |
 | POST | `/api/session/acknowledge` | Clear an alert banner |
 | POST | `/api/voice/mute` | Toggle mute |
 | GET | `/api/sessions` | History |
 | GET | `/api/sessions/{id}/telemetry` | Download log |
 | GET | `/api/sessions/{id}/verify` | Run chain verifier |
-| GET | `/api/preview.mjpg` | Preview stream with overlays |
+| GET | `/video` | Preview stream with overlays (MJPEG) |
 | WS | `/ws` | Live state, alerts, health |
 
 All bound to loopback by default. RTSP is the only externally-bound port, and only because

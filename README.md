@@ -41,15 +41,18 @@ run time.
 uv run python scripts/web_demo.py
 ```
 
-Open **http://localhost:8000**. A local FastAPI server runs the camera → detection →
-reasoning-engine loop and streams the annotated video (MJPEG) plus live state (WebSocket)
-to a self-contained browser UI — step timeline, next-step prompt spoken aloud, alert
-banner, run summary and controls.
+Open **http://localhost:8000**. The console opens in **Ready** with the camera off.
+**New run** powers the camera, opens a hash-chained telemetry log and starts judging the
+procedure; **End run** seals the log and releases the camera. A local FastAPI server runs
+the camera → detection → reasoning-engine loop and streams the annotated video (MJPEG)
+plus live state (WebSocket) to the built dashboard.
 
 | Flag | Effect |
 |---|---|
 | `--world` | use **YOLO-World** open-vocabulary detection (any object you can name) |
 | `--procedure demo_live4` | 4-step demo instead of 3 |
+| `--autostart` | start a run at launch instead of waiting for **New run** |
+| `--no-mirror` | show the camera's true view; mirrored (selfie-style) is the default |
 | `--camera 1` | pick a different camera |
 | `--port 8000` | change the port |
 
@@ -74,20 +77,60 @@ uv run pytest
 
 ## What the dashboard can do
 
-**Build an experiment in the browser.** Click **＋ Build experiment**, pick objects, order
-them into a sequence, and run it live — no YAML editing, no restart. With `--world` you can
-type *any* object name, not just a fixed list.
+Four sections, switchable with keys `1`–`4` (`M` mutes, `Esc` acknowledges an alert).
+Three themes from the palette button — Graphite (default), Slate and Daylight — and a
+**Mirror** toggle on the camera: a webcam facing you moves the wrong way unless mirrored.
+Mirroring changes the picture only; detection and every coordinate use the true view.
 
-**Teach it new objects and states.** Click **🧠 Train model** to create classes
-(e.g. `open_book`, `closed_book`), capture images straight from the camera
-(**📷 Snap** / **📷 ×10**) or upload files, train a classifier on-device, and click
-**Use** to run it live. No bounding boxes required — image classification is what makes
-"just add pictures" work, and it is how object *states* are captured.
+**Mission** — the live console. Camera with a heads-up display, the current step with its
+spoken prompt, a rolling confidence trace drawn against τ-complete and τ-abstain, the
+live evidence checklist, the procedure timeline, and the downlink / telemetry / clock /
+perception meters. Alerts take over the top of the feed until acknowledged. When a run
+completes or is ended, a **debrief** shows the verdict, per-step timing, the sealed
+SHA-256 chain head and the downlink ratio.
 
-> A classifier always returns one of its classes, so a **`background`** class (images of the
-> empty scene / covered lens) is required — it is the "nothing here" escape hatch. Without
-> it the model confidently guesses a real object when nothing is present. Predictions are
-> additionally gated on confidence **and** margin over the runner-up.
+**Procedures** — run any procedure in the `procedures/` library, or compose a quick
+sequence from objects the detector already knows. A procedure the loaded detector cannot
+perceive is refused with the missing classes named; **Run anyway** is an explicit choice.
+With `--world` you can type *any* object name, not just a fixed list.
+
+**Models** — teach it new objects and states in five stages: **Classes → Capture → Train
+→ Test → Deploy**. Pick the procedure you are training for and it creates the classes and
+shows which step each one serves. Capture from the camera (single or burst) or upload images
+and video, train on-device, then **test live**: the page shows what the model thinks of the
+current frame, by the same rule a run uses, and one click files a wrong frame under the
+right class for the next training. Deploy starts the procedure with your model. No bounding
+boxes required — image classification is what makes "just add pictures" work, and it is how
+object *states* are captured.
+
+**Archive** — every run, filterable by outcome, with its steps, alerts and downloads.
+**Verify chain** re-hashes the telemetry from genesis and names the exact record if any
+byte was altered.
+
+> **Background is the class that matters most.** A classifier always answers with one of its
+> classes, so `background` is how it says "none of these" — and it must show *everything the
+> camera will see that is not a target*: the empty scene, your **empty hands**, a single
+> finger, your face, other objects. Train fifty photos of an object against twenty of a blank
+> wall and the model learns "not a blank wall = the object"; then a raised finger completes
+> the step. Give background at least as many photos as your biggest class, and use the Test
+> stage to hunt down what it still gets wrong. Predictions are additionally gated on
+> confidence **and** margin over the runner-up.
+
+### Recipe: the drink-water experiment
+
+`procedures/drink_water.yaml` judges *pick up the bottle → open the cap → drink → close the
+cap → put it back* from five scene states:
+
+1. **Models** → *Training for* **Drink water from a bottle** → **Create them**. You get
+   `bottle_home`, `holding_closed`, `holding_open`, `drinking` and `background`.
+2. Mark the bottle's home spot (a coaster or a sheet of paper). Capture 30–50 photos of each
+   state from the laptop camera, moving between shots. Give `background` the most: empty
+   spot, empty hands, fingers, face, other objects, the bottle somewhere that is not home.
+3. **Train** (20 epochs), then **Test model**: perform each state and check every verdict.
+   File anything wrong under the right class and train again.
+4. **Deploy & run.** One class serves two steps — `holding_closed` is "picked up" at step 1
+   and "cap closed again" at step 4 — because the engine only judges the step you are on.
+   Run in **Strict** mode to have drinking before opening flagged out of sequence.
 
 ---
 
@@ -121,7 +164,7 @@ no retraining.
 | `src/orbital_har/reasoning/` | Schema, predicates, window, engine |
 | `src/orbital_har/runtime/` | SQLite store, hash-chained telemetry, session runner |
 | `src/orbital_har/server/` | FastAPI + WebSocket |
-| `ui/` | React dashboard shell |
+| `ui/` | React dashboard: Mission, Procedures, Models, Archive |
 | `tests/` | Unit tests and the golden replay corpus |
 
 Start with [CLAUDE.md](CLAUDE.md) for the invariants, then [docs/](docs/README.md).

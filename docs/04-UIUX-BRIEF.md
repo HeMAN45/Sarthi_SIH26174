@@ -1,7 +1,7 @@
 # UI/UX Brief
 
 **Project:** ORBITAL-HAR · SIH26174 · Team Hashira
-**Version:** 1.0 · 2026-09-20
+**Version:** 1.2 · 2026-09-26 (as-built: engineering-console restyle, three themes, mirror)
 
 ---
 
@@ -28,6 +28,30 @@ counterpart. If the jury cannot see it, it did not happen.
 ---
 
 ## 2. Information architecture
+
+**As built (2026-09-26):**
+
+```
+/            → Mission     (live console: next instruction + evidence + telemetry)
+/procedures  → Procedures  (library + quick-sequence builder; hot-swap, App flow §9)
+/models      → Models      (on-device classifier: Classes → Capture → Train → Deploy)
+/archive     → Archive     (history, downloads, telemetry verification)
+```
+
+The section switch is an underlined tab strip in the top bar (keys `1`–`4`), beside the
+run pill (phase · procedure · mission-elapsed clock), the subsystem strip (CAM · RACK ·
+POSE · VOICE · LINK), mute, the theme menu and shutdown. The bar sheds detail as the
+window narrows — key hints, then the procedure name, then labels — and never overflows.
+Old routes (`/experiment`, `/train`, `/sessions`) redirect.
+
+The camera is displayed **mirrored** by default, because a webcam facing the operator
+otherwise moves the wrong way; a HUD toggle and `--no-mirror` give the true view. Only the
+picture flips: perception, telemetry and the recording's evidence value are unaffected, and
+the overlay is drawn after the flip so labels stay readable.
+
+**Deferred:** the separate crew-only HUD (§3) and the replay player. The Mission console
+serves both audiences for now — the current instruction is its hero element and the
+evidence sits one glance below it. The original plan follows:
 
 ```
 /            → Crew HUD          (default; full screen)
@@ -167,53 +191,65 @@ likely to get cut for time. Do not cut it.
 
 ## 6. Design tokens
 
-### Colour — dark base
+Tokens live in `ui/src/styles/theme.css`; this table mirrors the default theme.
 
-| Token | Value | Use |
+### Colour — three themes, one token set
+
+**Graphite** (default) is charcoal, not black: dark enough for a dim hall, light enough to
+read at a glance. **Slate** is a cooler blue-grey with a cyan accent. **Daylight** is for
+bright rooms and washed-out projectors. The camera stays a dark island in every theme.
+The choice is per machine (browser storage) and applies before first paint.
+
+| Token (Graphite) | Value | Use |
 |---|---|---|
-| `--bg-0` | `#0B0E11` | Page |
-| `--bg-1` | `#141A1F` | Panel |
-| `--bg-2` | `#1D252C` | Raised |
-| `--border` | `#2A343D` | Hairlines |
-| `--text-0` | `#E8EDF2` | Primary |
-| `--text-1` | `#9AA7B4` | Secondary |
-| `--text-2` | `#5F6D7A` | Muted |
-| `--accent` | `#3B9EFF` | Active step, focus |
-| `--ok` | `#35C98B` | Complete, healthy |
-| `--warn` | `#F0A63C` | Unverified, stalled, degraded |
-| `--danger` | `#F2545B` | Skipped, out of order, fault |
-| `--info` | `#9B7DF0` | Overridden, crew-attributed |
+| `--bg` / `--bg-deep` | `#1A1C1F` / `#141618` | Page / top bar, insets |
+| `--panel` | `#212428` | Panel |
+| `--panel-2` / `--panel-3` | `#292D32` / `#30353B` | Raised, selected |
+| `--well` | `#0F1113` | Camera |
+| `--line` / `--line-2` | `#33383E` / `#40464D` | Rules — visible, not hairline-faint |
+| `--ink` / `--ink-2` / `--ink-3` | `#F1EFE9` / `#C6C1B6` / `#9A958A` | Text, warm off-white |
+| `--accent` | `#F39A2E` | Saffron — ISRO's colour. Active step, focus, primary action |
+| `--ok` | `#5CC68E` | Complete, healthy |
+| `--caution` | `#E8C64F` | Unverified, stalled, degraded |
+| `--alert` | `#F06A63` | Skipped, out of order, fault |
+| `--info` | `#B9A0F3` | Overridden, crew-attributed |
 
 Contrast floor: 4.5:1 for all text against its background; 7:1 for the crew instruction.
 
 ### State language — colour is never the only cue
 
-| State | Colour | Glyph | Fill |
+| State | Colour | Icon | Fill |
 |---|---|---|---|
-| Pending | `--text-2` | `○` | none |
-| Active | `--accent` | `●` | solid |
-| Complete | `--ok` | `✓` | solid |
-| Skipped | `--danger` | `✕` | solid |
-| Out of order | `--danger` | `⇄` | hatched |
-| Unverified | `--warn` | `?` | hatched |
-| Stalled | `--warn` | `⏱` | outline |
-| Overridden | `--info` | `⊙` | outline |
+| Pending | `--ink-3` | step number | outline |
+| Active | `--accent` | step number | solid, with a glow ring |
+| Complete | `--ok` | check | tinted |
+| Skipped | `--alert` | ✕ | tinted |
+| Out of order | `--alert` | ⇄ | tinted |
+| Unverified | `--caution` | ? | tinted |
+| Stalled | `--caution` | hourglass | tinted |
+| Overridden | `--info` | hand | tinted |
 
-Hatching and glyphs mean the interface remains readable in greyscale, under projector
-colour shift, and for colour-blind viewers.
+Every state also carries its word ("Skipped", "Interrupted" for the step a crew-ended run
+stopped on), so the interface reads in greyscale, under projector colour shift, and for
+colour-blind viewers. Step nodes are square-cornered tiles, not glowing dots. Icons are
+Lucide, bundled; the mark is a monoline chariot wheel — a *sarthi* is a charioteer.
 
 ### Typography
 
-Sans (Inter or system) for prose; **monospace for all numerics** — FPS, confidence,
-durations, byte counts. Monospaced digits stop the layout jittering as values update, which
-matters a great deal on a live dashboard being watched by a judge.
+**Geist** for instructions and prose; **Geist Mono** for headings, labels and all
+numerics — FPS, confidence, durations, byte counts, clocks, hashes. Section titles are mono
+capitals behind a square accent tick. Monospaced digits stop the layout jittering as values
+update. Both fonts are bundled through `@fontsource` — never a CDN (§9).
 
-Scale: 72 / 48 / 32 / 20 / 16 / 14 / 12 px. Weights 400 and 500 only.
+Scale: 30 (current step, meters) / 28 (page titles) / 15 (body) / 12–13.5 mono uppercase
+(labels). Nothing below 11.5px. Weights 400–700.
 
 ### Spacing and shape
 
-4px base unit. Panel padding 20px, gaps 16px. Radius 8px panels, 6px controls. Borders
-1px hairline. No shadows, no gradients.
+4px base unit. Panel padding 18px, gaps 16px — 12px on screens under 820px tall, so a
+720p projector still shows every panel without scrolling. Radius 8px panels, 6px controls,
+4px chips. Borders 1px and visible. Flat surfaces: no glows, no gradients, no gradient
+text. Emphasis is a 3px accent rule — the current step, the active tab, the debrief.
 
 ---
 
@@ -228,12 +264,17 @@ Scale: 72 / 48 / 32 / 20 / 16 / 14 / 12 px. Weights 400 and 500 only.
 Never stack more than one high alert. A newer high alert replaces the older, and the older
 remains in the ops timeline.
 
+**As built:** alerts take over the top of the camera feed rather than the instruction zone.
+High (red) and medium (amber) persist until acknowledged — button or `Esc`; low (blue)
+clears itself after six seconds. Every alert remains in the Archive for that run.
+
 ---
 
 ## 8. Accessibility
 
 Keyboard-operable throughout; `Space` confirms, `O` overrides, `M` mutes, `Esc`
-acknowledges. Visible 2px focus ring in `--accent`. All state conveyed by glyph and text as
+acknowledges. (As built: `M`, `Esc` and `1`–`4` for sections; confirm and override wait
+on their endpoints.) Visible 2px focus ring in `--accent`. All state conveyed by glyph and text as
 well as colour. Live regions announce step changes and alerts to screen readers. Motion
 respects `prefers-reduced-motion` — pulses become static.
 
@@ -261,7 +302,8 @@ performing the procedure.
 
 Purposeful only. Step transitions cross-fade at 160 ms. Alerts appear instantly — no
 entrance animation on anything urgent. The live dot pulses at 1 Hz. Confidence traces
-scroll continuously. Nothing else moves.
+scroll continuously. Nothing decorative moves, and all of it stops under
+`prefers-reduced-motion`.
 
 ---
 

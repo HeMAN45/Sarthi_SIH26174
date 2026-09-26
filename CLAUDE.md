@@ -94,7 +94,7 @@ find yourself needing perception to test the engine, the seam has been broken.
 
 ## Current state
 
-**The pipeline runs end to end on a camera.** 181 tests pass; ruff, the import-boundary
+**The pipeline runs end to end on a camera.** 270 tests pass; ruff, the import-boundary
 contract and the offline guard are all green.
 
 Built and working:
@@ -109,7 +109,17 @@ Built and working:
   `session.LiveSession` (the composition root), `voice` (Piper, pre-synthesized,
   pre-emptible), `videoout` (mp4 + RTSP), `training` (on-device classifier).
 - **server** — one FastAPI app; live endpoints degrade to 503 without a session.
-- **ui** — React dashboard: Mission HUD, Experiment builder, Train, Sessions.
+- **ui** — React console: Mission, Procedures (library + builder), Models (Classes →
+  Capture → Train → Test → Deploy), Archive (history + chain verification). Flat
+  engineering-console style, three themes (Graphite default, Slate, Daylight); Geist and
+  Lucide bundled, nothing fetched at run time. Camera display mirrored by default.
+- **training** — perception draws its overlay on a copy, so training captures are clean;
+  validation is held out; the test stage uses the live acceptance rule; the last model
+  survives a restart. Background-class advice is surfaced before training.
+- **procedures** — `drink_water.yaml`: five steps from scene-state classes, one class
+  serving two steps (`tests/test_drink_water.py`).
+- **lifecycle** — Ready → Live → Complete. The camera belongs to a run: off in Ready,
+  powered by New run, released by End run (`tests/test_session.py`).
 
 Verify with `uv run orbital-har demo proc_a_skip_s4`, then `uv run pytest`.
 

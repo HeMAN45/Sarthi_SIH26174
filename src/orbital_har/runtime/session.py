@@ -35,7 +35,17 @@ from orbital_har.runtime.voice import Voice
 #: hundreds, and the spare time belongs to inference.
 LOOP_PERIOD_S = 1.0 / 30.0
 
+#: Loop period while Ready. Nothing is captured or judged; the dashboard only
+#: needs its state kept fresh, and that should cost nothing.
+STANDBY_PERIOD_S = 0.1
+
 _MODE_LOOKAHEAD = {"clean": 0, "strict": 1}
+
+#: Session lifecycle (docs/03-APP-FLOW.md section 3). The camera is on in LIVE
+#: and COMPLETE and off in READY -- ending a run releases the device.
+PHASE_READY = "ready"
+PHASE_LIVE = "live"
+PHASE_COMPLETE = "complete"
 
 
 # --------------------------------------------------------------------------
@@ -65,7 +75,10 @@ def perception_needs(proc: Procedure) -> tuple[bool, bool]:
     with nobody having to remember a flag.
     """
     kinds = {p.kind for s in proc.steps for p in (*s.requires, *s.any_of)}
-    needs_rack = bool(proc.markers) or bool(kinds & {"near", "moved", "dwell"})
+    # Only millimetre predicates need the rack. ``dwell`` regions are fractions
+    # of the image, so a marker-less "put it back in its spot" check works on a
+    # plain webcam -- and must not report a rack it never needed as lost.
+    needs_rack = bool(proc.markers) or bool(kinds & {"near", "moved"})
     needs_pose = "contact" in kinds
     return needs_rack, needs_pose
 
@@ -118,7 +131,9 @@ def build_procedure(
                 "name": f"Present the {c}",
                 "voice": f"Step {i}. Please present the {c}.",
                 "preconditions": [f"s{i - 1}"] if i > 1 else [],
-                "requires": [{"detect": c, "hold_frames": 5}],
+                # About half a second at webcam rates: long enough that a
+                # one-frame misclassification cannot complete a step.
+                "requires": [{"detect": c, "hold_frames": 8}],
                 "timeout_s": 120,
                 "on_timeout": "stall",
             }
@@ -191,6 +206,7 @@ class SessionLog:
         self.closed = False
         self.alerts = 0
         self.started = time.time()
+        self.ended: float | None = None
 
         self.telemetry = TelemetryWriter(self.dir / "telemetry.jsonl").open()
         meta = proc.procedure
@@ -267,6 +283,11 @@ class SessionLog:
             self.recorder.write(frame)
 
     @property
+    def elapsed_s(self) -> float:
+        """Wall-clock run time; frozen at the moment the run was sealed."""
+        return round((self.ended or time.time()) - self.started, 1)
+
+    @property
     def stats(self) -> dict[str, Any]:
         # Real recorded size, so the downlink ratio is measured rather than
         # estimated -- it is the headline number, so it should be honest.
@@ -284,12 +305,17 @@ class SessionLog:
             "frames": self.recorder.frames if self.recorder else 0,
             "video_bytes": video_bytes,
             "rtsp": bool(self.recorder and self.recorder.rtsp_active),
+            "elapsed_s": self.elapsed_s,
+            # The chain head. Anyone holding it can later prove the log they are
+            # shown is the log that was written.
+            "head": self.telemetry.last_hash,
         }
 
     def close(self, engine: Engine) -> None:
         if self.closed:
             return
         self.closed = True
+        self.ended = time.time()
         counts: dict[str, int] = {}
         for rt in engine.runtimes:
             counts[rt.state.value] = counts.get(rt.state.value, 0) + 1
@@ -306,7 +332,7 @@ class SessionLog:
                 steps_unverified=counts.get("unverified", 0),
                 steps_overridden=counts.get("overridden", 0),
                 alert_count=self.alerts,
-                duration_ms=int((time.time() - self.started) * 1000),
+                duration_ms=int((self.ended - self.started) * 1000),
             )
             self.store.upsert_telemetry_chain(session_id=self.id, **chain)
         except Exception as exc:
@@ -323,6 +349,12 @@ class SessionLog:
 class LiveSession:
     """Camera -> perception -> engine -> voice, telemetry, video and UI state.
 
+    The lifecycle is Ready -> Live -> Complete (docs/03-APP-FLOW.md section 3).
+    The camera belongs to a run: it is powered when a run starts and released
+    when it ends, so an idle console is not a console silently watching the
+    room. Between runs it can be powered on its own as a preview, which is what
+    capturing training images needs.
+
     Control methods are queued rather than applied inline: the capture thread
     owns the engine, and swapping it from an HTTP worker is how you get a torn
     read.
@@ -332,12 +364,15 @@ class LiveSession:
         self,
         proc: Procedure,
         detector: Detector,
-        camera: int = 0,
+        camera: int | Camera = 0,
         min_area: float = 0.06,
         data_root: Path = Path("data"),
         rtsp_url: str | None = None,
         record: bool = True,
         record_height: int = DEFAULT_RECORD_HEIGHT,
+        *,
+        voice: Voice | None = None,
+        mirror: bool = True,
     ) -> None:
         self.data_root = data_root
         self.sessions_root = data_root / "sessions"
@@ -351,7 +386,7 @@ class LiveSession:
         self.proc = proc
         self.detector = detector
         self.pipeline = PerceptionPipeline(detector)
-        self.camera = Camera(camera)
+        self.camera = camera if isinstance(camera, Camera) else Camera(camera)
         self.log: SessionLog | None = None
 
         self.wanted = proc.vocabulary_classes
@@ -359,7 +394,7 @@ class LiveSession:
             detector.set_classes(self.wanted)
 
         # Speech lives on the device, not in a browser tab.
-        self.voice = Voice(cache_dir=data_root / "voice")
+        self.voice = voice if voice is not None else Voice(cache_dir=data_root / "voice")
         self.voice.start()
         if not self.voice.available:
             print(f"[voice] on-device voice unavailable: {self.voice.unavailable_reason}")
@@ -368,8 +403,17 @@ class LiveSession:
         self.engine = make_engine(proc, self.mode)
         self._configure_for(proc)
 
+        self.phase = PHASE_READY
+        self.camera_on = False
+        self._opening = False
+        #: Selfie-style display. A webcam facing the operator reads backwards
+        #: otherwise: move left and the picture moves right. Display only --
+        #: perception and its coordinates keep the camera's true orientation.
+        self.mirror = mirror
+
         self._lock = threading.Lock()
-        self._jpeg = self._encode(placeholder("starting camera ..."))
+        self._standby = self._encode(placeholder("camera off"))
+        self._jpeg = self._standby
         self._raw: np.ndarray | None = None
         self._state: dict[str, Any] = {}
         self._alert: dict[str, Any] | None = None
@@ -379,10 +423,15 @@ class LiveSession:
         self._new_session = True
         self.running = False
         self._thread: threading.Thread | None = None
+        self._publish(0.0)
 
     # ------------------------------------------------------------- lifecycle
 
-    def start(self) -> None:
+    def start(self, *, autostart: bool = False) -> None:
+        """Start the control loop. The camera stays off until a run begins,
+        unless ``autostart`` asks for one straight away."""
+        if autostart:
+            self.start_run(self.mode)
         self.running = True
         self._thread = threading.Thread(target=self._loop, name="LiveSession", daemon=True)
         self._thread.start()
@@ -403,6 +452,8 @@ class LiveSession:
         thread = self._thread
         if thread is not None and thread.is_alive():
             thread.join(timeout=timeout)
+        self.camera.release()
+        self.camera_on = False
         self.voice.close()
         self.finalize()
 
@@ -415,21 +466,47 @@ class LiveSession:
 
     # ---------------------------------------------------------------- control
 
+    def start_run(self, mode: str = "clean") -> None:
+        """Power the camera and begin a fresh supervised run.
+
+        Starting while a run is live seals that run first, judged by its own
+        engine -- a restart never erases what the previous run established.
+        """
+        self._pending.append(("start", mode if mode in _MODE_LOOKAHEAD else "clean"))
+
+    def end_run(self) -> None:
+        """Seal the run and release the camera. The system returns to Ready."""
+        self._pending.append(("end",))
+
+    def set_camera(self, on: bool) -> None:
+        """Power the camera without a run: a preview, e.g. for training capture.
+
+        Switching it off during a live run ends that run. Supervision that
+        carries on with no camera is supervision in name only.
+        """
+        self._pending.append(("camera", bool(on)))
+
     def skip(self) -> None:
         self._pending.append(("skip",))
 
-    def end_run(self) -> None:
-        """Finish the current run and arm a fresh one; camera keeps running."""
-        self._pending.append(("end_run",))
+    def load_procedure(self, proc: Procedure, *, start: bool = False) -> None:
+        """Hot-swap the procedure (docs/03-APP-FLOW.md section 9).
 
-    def restart(self, mode: str) -> None:
-        self._pending.append(("restart", mode if mode in _MODE_LOOKAHEAD else "clean"))
+        A live run is sealed first; the new procedure never inherits its steps.
+        """
+        self._pending.append(("load", proc, start))
 
-    def load_procedure(self, proc: Procedure) -> None:
-        self._pending.append(("load", proc))
+    def use_classifier(self, model_path: str, proc: Procedure | None = None) -> None:
+        """Swap in a trained classifier and start a run with it.
 
-    def use_classifier(self, model_path: str) -> None:
-        self._pending.append(("classifier", model_path))
+        With ``proc`` the run follows that procedure (its classes must be the
+        model's); without, every trained class becomes one step, in order.
+        """
+        self._pending.append(("classifier", model_path, proc))
+
+    def set_mirror(self, on: bool) -> None:
+        """Mirror the displayed picture. Takes effect on the next frame."""
+        self.mirror = bool(on)
 
     # ------------------------------------------------------------------ reads
 
@@ -456,6 +533,17 @@ class LiveSession:
     def all_classes(self) -> list[str]:
         return self.detector.all_classes
 
+    def missing_classes(self, proc: Procedure) -> list[str]:
+        """Classes ``proc`` needs that the loaded detector cannot produce.
+
+        An open-vocabulary model is told its classes, so it is never missing
+        any. Anything else is a promise the procedure makes and this model
+        cannot keep (docs/03-APP-FLOW.md section 9, step 4).
+        """
+        if self.detector.open_vocab:
+            return []
+        return sorted(proc.vocabulary_classes - set(self.detector.all_classes))
+
     # -------------------------------------------------------------- internals
 
     @staticmethod
@@ -464,6 +552,78 @@ class LiveSession:
 
         ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         return buf.tobytes() if ok else b""
+
+    def _publish(self, fps: float) -> None:
+        st = self._build_state(fps)
+        with self._lock:
+            self._state = st
+
+    def _camera_status(self) -> dict[str, Any]:
+        if not self.camera_on:
+            state = "off"
+        elif self._opening:
+            state = "starting"
+        elif self.camera.opened:
+            state = "live"
+        else:
+            state = "unavailable"
+        return {
+            "on": self.camera_on,
+            "state": state,
+            "index": self.camera.index,
+            # Never degrade silently (invariant #10): say why, not just that.
+            "detail": self.camera.failure if state == "unavailable" else None,
+            "mirror": self.mirror,
+        }
+
+    def _power(self, on: bool) -> None:
+        """Open or release the camera device."""
+        if not on:
+            self.camera_on = False
+            self.camera.release()
+            with self._lock:
+                self._jpeg = self._standby
+                # A stale frame must not be captured as training data later.
+                self._raw = None
+            return
+        self.camera_on = True
+        if self.camera.opened:
+            return
+        # Opening can block for a second or two (DirectShow). Publish first so
+        # the dashboard shows "starting" rather than a frozen screen.
+        self._opening = True
+        self._publish(0.0)
+        try:
+            self.camera.open()
+        finally:
+            self._opening = False
+
+    def _seal(self) -> None:
+        """Close the in-flight run, judged by the engine that ran it."""
+        self.finalize()
+
+    def _begin(self, mode: str) -> None:
+        # Seal BEFORE replacing the engine. Sealing afterwards judged the old
+        # run by the new, empty engine and archived every restart as 0 of N.
+        self._seal()
+        self.mode = mode
+        self.voice.reset()
+        self.engine = make_engine(self.proc, self.mode)
+        self._reset_run()
+        self._power(True)
+        self.phase = PHASE_LIVE
+
+    def _swap(self, proc: Procedure) -> None:
+        self._seal()
+        self.proc = proc
+        self.wanted = proc.vocabulary_classes
+        self.detector.set_classes(self.wanted)
+        self.mode = "clean"
+        self.engine = make_engine(proc, self.mode)
+        self._configure_for(proc)
+        self._reset_run()
+        # The last run's debrief describes a procedure that is no longer loaded.
+        self.log = None
 
     def _configure_for(self, proc: Procedure) -> None:
         want_rack, want_pose = perception_needs(proc)
@@ -487,37 +647,36 @@ class LiveSession:
         out: list[Event] = []
         while self._pending:
             cmd = self._pending.pop(0)
-            if cmd[0] == "skip":
-                out += self.engine.skip(None, t, reason="crew skipped (object unavailable)")
-            elif cmd[0] == "end_run":
-                self.finalize()
-                self.voice.reset()
-                self.engine = make_engine(self.proc, self.mode)
-                self._reset_run()
-            elif cmd[0] == "restart":
-                self.mode = cmd[1]
-                self.voice.reset()
-                self.engine = make_engine(self.proc, self.mode)
-                self._reset_run()
-            elif cmd[0] == "load":
-                self.proc = cmd[1]
-                self.wanted = self.proc.vocabulary_classes
-                self.detector.set_classes(self.wanted)
-                self.mode = "clean"
-                self.engine = make_engine(self.proc, self.mode)
-                self._configure_for(self.proc)
-                self._reset_run()
-            elif cmd[0] == "classifier":
+            kind = cmd[0]
+            if kind == "skip":
+                # Skipping is a verdict; there is nothing to skip between runs.
+                if self.phase == PHASE_LIVE:
+                    out += self.engine.skip(None, t, reason="crew skipped (object unavailable)")
+            elif kind == "start":
+                self._begin(cmd[1])
+            elif kind == "end" or (kind == "camera" and not cmd[1]):
+                self._seal()
+                self._power(False)
+                self.phase = PHASE_READY
+            elif kind == "camera":
+                self._power(True)
+            elif kind == "load":
+                self._swap(cmd[1])
+                if cmd[2]:
+                    self._begin("clean")
+                else:
+                    self._power(False)
+                    self.phase = PHASE_READY
+            elif kind == "classifier":
+                self._seal()
                 names = self.detector.use_classifier(cmd[1])
                 try:
-                    self.proc = build_procedure(names, set(names), name="Trained-states demo")
-                    self.wanted = self.proc.vocabulary_classes
-                    self.mode = "clean"
-                    self.engine = make_engine(self.proc, self.mode)
-                    self._configure_for(self.proc)
-                except ValueError:
-                    pass
-                self._reset_run()
+                    self._swap(
+                        cmd[2] or build_procedure(names, set(names), name="Trained-states demo")
+                    )
+                except ValueError as exc:
+                    print(f"[session] trained model has no usable classes: {exc}")
+                self._begin("clean")
         return out
 
     def _reset_run(self) -> None:
@@ -526,9 +685,8 @@ class LiveSession:
         self._new_session = True
 
     def _start_session(self, size: tuple[int, int]) -> None:
-        """Begin a new logged run. Closes any previous one first."""
-        if self.log is not None and not self.log.closed:
-            self.log.close(self.engine)
+        """Begin a new logged run. Every path here has already sealed the last."""
+        self._seal()
         try:
             self.log = SessionLog(
                 self.sessions_root,
@@ -567,7 +725,6 @@ class LiveSession:
                 self.voice.alert(p["message"], tag=f"alert:{self._alert_seq}")
 
     def _loop(self) -> None:
-        self.camera.open()
         fid = 0
         seq = 0
         last_t = time.time()
@@ -575,26 +732,44 @@ class LiveSession:
 
         while self.running:
             now = time.time()
-            fid += 1
-
+            commanded = bool(self._pending)
             self._handle(self._apply_pending(now))
+            if commanded:
+                # A pressed button (or the alert it raised) should not wait
+                # behind a whole frame of inference before the dashboard sees it.
+                self._publish(round(fps, 1))
 
+            if not self.camera_on:
+                # Ready: no device held, nothing judged. Keep the dashboard's
+                # state fresh and otherwise stay out of the way.
+                fps, last_t = 0.0, now
+                self._publish(0.0)
+                time.sleep(STANDBY_PERIOD_S)
+                continue
+
+            fid += 1
             raw_frame, frame = self.camera.frame_or_placeholder()
             have_cam = raw_frame is not None
+            live = self.phase == PHASE_LIVE
 
-            if self._new_session and have_cam:
+            if live and self._new_session and have_cam:
                 self._start_session((frame.shape[1], frame.shape[0]))
                 self._new_session = False
 
             verdicts: list[Event] = []
             if have_cam:
-                obs = self.pipeline.observe(frame, fid, wanted=self.wanted, min_area=self.min_area)
+                obs = self.pipeline.observe(
+                    frame, fid, wanted=self.wanted, min_area=self.min_area, mirror=self.mirror
+                )
                 frame = obs.frame
-                for src, type_, payload in obs.emissions:
-                    seq += 1
-                    verdicts += self.engine.on_event(
-                        Event(t=now, seq=seq, src=src, type=type_, payload=payload)
-                    )
+                # A preview perceives (the overlay is how you frame a shot) but
+                # judges nothing: the engine is only fed during a run.
+                if live:
+                    for src, type_, payload in obs.emissions:
+                        seq += 1
+                        verdicts += self.engine.on_event(
+                            Event(t=now, seq=seq, src=src, type=type_, payload=payload)
+                        )
             self._handle(verdicts)
 
             # Exponential moving average. A single inter-frame gap sampled twice
@@ -604,12 +779,14 @@ class LiveSession:
                 inst = 1.0 / dt
                 fps = inst if fps <= 0.0 else fps * 0.9 + inst * 0.1
 
-            # Record the annotated frame: the video is evidence, so it should
-            # show what the system saw and concluded.
-            if self.log is not None:
-                self.log.write_frame(frame)
-                if self.engine.is_complete and not self.log.closed:
-                    self.log.close(self.engine)
+            if live:
+                # Record the annotated frame: the video is evidence, so it
+                # should show what the system saw and concluded.
+                if self.log is not None:
+                    self.log.write_frame(frame)
+                if self.engine.is_complete:
+                    self._seal()
+                    self.phase = PHASE_COMPLETE
 
             jpeg = self._encode(frame)
             st = self._build_state(round(fps, 1))
@@ -617,6 +794,8 @@ class LiveSession:
                 self._jpeg = jpeg
                 self._state = st
                 if raw_frame is not None:
+                    # Clean: perception draws on a copy, so this is exactly
+                    # what the camera saw -- the right thing to train on.
                     self._raw = raw_frame
 
             # A camera paces us naturally, but a missing or stalled one does
@@ -655,10 +834,16 @@ class LiveSession:
         if e.started_t is not None and resolved_ts:
             duration = round(max(resolved_ts) - e.started_t, 1)
         return {
+            "phase": self.phase,
+            "camera": self._camera_status(),
             "procedure": e.procedure.procedure.name,
+            "procedure_id": e.procedure.procedure.id,
             "mode": self.mode,
             "open_vocab": self.detector.open_vocab,
             "fps": fps,
+            # Drawn on the confidence trace, so abstention is legible rather
+            # than mysterious (docs/04-UIUX-BRIEF.md section 4).
+            "thresholds": {"complete": e.config.tau_complete, "abstain": e.config.tau_abstain},
             # Degradation is never silent (invariant #10).
             "perception": self.pipeline.status(),
             "voice": self.voice.status(),

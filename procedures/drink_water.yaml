@@ -1,0 +1,88 @@
+# DRINK-WATER — pick up the bottle, open, drink, close, put it back
+#
+# Five steps judged by an on-device scene classifier you train in the Models
+# tab. Each class is one visibly different state of the scene; the step order
+# does the rest.
+#
+# Train these classes (Models -> "Set up for a procedure" creates them):
+#
+#   bottle_home     bottle standing in its marked spot, cap on, hands off it
+#   holding_closed  bottle in your hand, cap ON
+#   holding_open    bottle in your hand, cap OFF
+#   drinking        bottle at your mouth, tilted
+#   background      EVERYTHING ELSE: empty spot, empty hands, fingers, face,
+#                   other objects, the bottle lying somewhere that is not home
+#
+# One class serves two steps. "holding_closed" means "picked up" at step 1 and
+# "cap closed again" at step 4: the engine only judges the step the crew is on
+# (CLAUDE.md invariant #11), so seeing it at step 1 cannot also complete step 4.
+#
+# Mark the home spot (a coaster, a square of paper) so "put it back" is a
+# visibly distinct scene rather than "a bottle somewhere on the table".
+# Run in Strict mode to have drinking before opening flagged out of sequence.
+
+procedure:
+  id: drink_water
+  name: Drink water from a bottle
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: scene-states
+
+markers: []
+regions: []
+
+objects:
+  - id: bottle
+    classes: [bottle_home, holding_closed, holding_open, drinking]
+
+steps:
+  - id: s1
+    name: Pick up the bottle
+    voice: "Step one. Pick up the bottle."
+    preconditions: []
+    requires:
+      - detect: holding_closed
+        hold_frames: 8
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s2
+    name: Open the bottle cap
+    voice: "Step two. Open the cap."
+    preconditions: [s1]
+    requires:
+      - detect: holding_open
+        hold_frames: 8
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s3
+    name: Drink the water
+    voice: "Step three. Take a drink."
+    preconditions: [s2]
+    requires:
+      # About a second at webcam rates: a sip, not a bottle passing the face.
+      - detect: drinking
+        hold_frames: 15
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s4
+    name: Close the bottle cap
+    voice: "Step four. Close the cap."
+    preconditions: [s3]
+    requires:
+      - detect: holding_closed
+        hold_frames: 8
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s5
+    name: Put the bottle back in its place
+    voice: "Step five. Put the bottle back in its place."
+    preconditions: [s4]
+    requires:
+      - detect: bottle_home
+        hold_frames: 12
+    timeout_s: 90
+    on_timeout: stall

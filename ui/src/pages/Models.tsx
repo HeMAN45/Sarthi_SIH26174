@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Aperture, BrainCircuit, Camera, CameraOff, Check, CircleCheck, Film, FlaskConical, ImageUp,
-  Layers, Lightbulb, Plus, Power, Rocket, ScanEye, Tags, Trash, TriangleAlert, Zap,
+  Aperture, BoxSelect, BrainCircuit, Camera, CameraOff, Check, CircleCheck, Film, FlaskConical,
+  ImageUp, Layers, Lightbulb, Plus, Power, Rocket, ScanEye, ScanSearch, Tags, Trash, TriangleAlert,
+  Zap,
 } from "lucide-react";
 import { api } from "../lib/api";
-import type { LibraryEntry, LiveState, Prediction, TrainClass, TrainStatus } from "../lib/api";
+import type {
+  BoxReview, LibraryEntry, LiveState, Prediction, TrainClass, TrainMode, TrainStatus,
+} from "../lib/api";
 import { plural } from "../lib/format";
 import { detectorLabel } from "../lib/modes";
 import { Stream } from "../components/Stream";
@@ -17,11 +20,22 @@ import { Bar, Ring } from "../components/viz";
 const TARGET = 20;
 const MIN = 3;
 
-const EPOCHS = [
-  { value: "10", label: "10" },
-  { value: "20", label: "20" },
-  { value: "40", label: "40" },
-];
+const EPOCHS: Record<TrainMode, { value: string; label: string }[]> = {
+  detect: [{ value: "10", label: "10" }, { value: "15", label: "15" }, { value: "25", label: "25" }],
+  classify: [{ value: "10", label: "10" }, { value: "20", label: "20" }, { value: "40", label: "40" }],
+};
+
+const MODE_TEXT: Record<TrainMode, string> = {
+  detect:
+    "Learns where the object is. Your hand, arm and face fall outside its box, so they are "
+    + "background automatically. The stock detector draws the boxes for you — it works for "
+    + "everyday objects: books, bottles, cups, phones. Your objects join the 80 stock ones and "
+    + "stay after a restart. About a minute per epoch on a laptop.",
+  classify:
+    "Learns what the whole picture looks like. Fast, and good for scenes (someone drinking), but "
+    + "it learns anything that differs between your photo sets — where your arm comes from, "
+    + "whether you sit in frame — so its background must be very varied.",
+};
 
 type Tone = "ok" | "alert" | "accent";
 
@@ -53,12 +67,16 @@ export default function Models({
   const [target, setTarget] = useState("");
   const [sel, setSel] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
-  const [epochs, setEpochs] = useState("20");
+  const [trainMode, setTrainMode] = useState<TrainMode>("detect");
+  const [epochs, setEpochs] = useState("15");
+  const [modelKind, setModelKind] = useState<TrainMode>("classify");
+  const [review, setReview] = useState<BoxReview | null>(null);
+  const [proposing, setProposing] = useState(false);
   const [note, setNote] = useState<{ tone: Tone; text: string } | null>(null);
   const [armed, setArmed] = useState<string | null>(null);   // delete asks twice
   const [shooting, setShooting] = useState(false);
   const [flashKey, setFlashKey] = useState(0);
-  const [mode, setMode] = useState<"capture" | "test">("capture");
+  const [mode, setMode] = useState<"capture" | "review" | "test">("capture");
   const [pred, setPred] = useState<Prediction | null>(null);
   const poll = useRef<number | undefined>(undefined);
   const weTurnedCameraOn = useRef(false);
@@ -67,7 +85,7 @@ export default function Models({
     try {
       const d = await api.trainClasses();
       setClasses(d.classes); setStatus(d.status); setReady(d.model_ready);
-      setAdvice(d.advice ?? []); setLoadError("");
+      setAdvice(d.advice ?? []); setLoadError(""); setModelKind(d.model_kind ?? "classify");
       setSel((cur) => cur && d.classes.some((c) => c.name === cur) ? cur : d.classes[0]?.name ?? null);
       return d.status;
     } catch (e) {
@@ -91,6 +109,7 @@ export default function Models({
     const first = window.setTimeout(() => {
       load().then((st) => { if (st?.state === "training") watch(); });
       api.library().then((l) => setLib(l.filter((e) => !e.error))).catch(() => { /* optional */ });
+      api.boxes().then((b) => { if (b.ok) setReview(b); }).catch(() => { /* none yet */ });
     }, 0);
     return () => { clearTimeout(first); if (poll.current) clearInterval(poll.current); };
   }, [load, watch]);
@@ -130,8 +149,10 @@ export default function Models({
   const bgImages = classes.some((c) => c.background && c.count > 0);
   const defined = classes.length >= 2 && hasBg;
   const captured = withImages.length >= 2 && withImages.every((c) => c.count >= MIN) && bgImages;
+  // Suspect background photos still left out (the operator may bring some back).
+  const suspects = review ? review.flagged.filter((k) => review.excluded.includes(k)).length : 0;
   const training = status?.state === "training";
-  const deployed = state?.perception.detector === "classifier";
+  const deployed = state?.perception.detector === "classifier" || state?.perception.detector === "detector";
   const report = status?.report;
   const stages = [
     { title: "Classes", sub: defined ? `${plural(classes.length, "class", "classes")} · background ✓` : "Name objects & states", done: defined },
@@ -144,8 +165,9 @@ export default function Models({
 
   const targetEntry = lib.find((e) => e.id === target);
   const uses = targetEntry?.uses ?? {};
+  // Only what training can provide: the stock detector already knows the rest.
   const missingForTarget = targetEntry
-    ? (targetEntry.classes ?? []).filter((c) => !classes.some((k) => k.name === c))
+    ? (targetEntry.train ?? targetEntry.classes ?? []).filter((c) => !classes.some((k) => k.name === c))
     : [];
 
   // ---- actions
@@ -209,10 +231,41 @@ export default function Models({
 
   const train = async () => {
     setNote(null);
-    const r = await api.startTrain(Number(epochs));
+    const r = await api.startTrain(Number(epochs), trainMode);
     if (!r.ok) { setNote({ tone: "alert", text: r.message }); return; }
-    setStatus({ state: "training", message: "preparing data", epoch: 0, epochs: Number(epochs) });
+    setStatus({ state: "training", message: "preparing data", epoch: 0, epochs: Number(epochs), kind: trainMode });
     watch();
+  };
+
+  const propose = async () => {
+    setProposing(true); setNote(null);
+    try {
+      const r = await api.proposeBoxes();
+      setReview(r);
+      setMode("review");
+    } catch {
+      setNote({ tone: "alert", text: "Could not look for the object in your photos." });
+    }
+    setProposing(false);
+  };
+
+  const toggleBox = async (cls: string, name: string) => {
+    const r = await api.toggleBox(cls, name);
+    if (!r.ok) return;
+    setReview((cur) => {
+      if (!cur) return cur;
+      const key = `${cls}/${name}`;
+      const excluded = r.excluded ? [...cur.excluded, key] : cur.excluded.filter((k) => k !== key);
+      return { ...cur, excluded };
+    });
+    // The counts come from the server, so what the page says is what training uses.
+    api.boxes().then((b) => { if (b.ok) setReview(b); }).catch(() => { /* keep the optimistic view */ });
+  };
+
+  const pickMode = (m: TrainMode) => {
+    setTrainMode(m);
+    setEpochs(m === "detect" ? "15" : "20");
+    if (m === "classify" && mode === "review") setMode("capture");
   };
 
   const deploy = async () => {
@@ -253,7 +306,7 @@ export default function Models({
           <div className="eyebrow">Active detector</div>
           <div className="row" style={{ gap: 8, marginTop: 8 }}>
             <ScanEye size={17} className="accent-ink" />
-            <span style={{ fontWeight: 650 }}>{detectorLabel(state?.perception.detector)}</span>
+            <span style={{ fontWeight: 650, whiteSpace: "nowrap" }}>{detectorLabel(state?.perception.detector, state?.perception.trained)}</span>
           </div>
         </div>
       </div>
@@ -353,11 +406,15 @@ export default function Models({
         {/* ------------------------------------------------ capture / test */}
         <div className="panel panel-pad">
           <PanelHead icon={Aperture}
-                     title={mode === "test" ? "Test the model" : <>Capture{selected && <span className="faint" style={{ fontWeight: 600 }}> · {selected.name}</span>}</>}
+                     title={mode === "test" ? "Test the model" : mode === "review" ? "Review boxes" : <>Capture{selected && <span className="faint" style={{ fontWeight: 600 }}> · {selected.name}</span>}</>}
                      right={<Seg value={mode} onChange={(m) => { setMode(m); setPred(null); setNote(null); }}
                                  options={[{ value: "capture", label: "Capture", icon: Camera },
+                                           ...(trainMode === "detect" ? [{ value: "review" as const, label: "Boxes", icon: BoxSelect }] : []),
                                            { value: "test", label: "Test model", icon: FlaskConical }]} />} />
 
+          {mode === "review" ? (
+            <BoxGallery review={review} onToggle={toggleBox} onPropose={propose} proposing={proposing} />
+          ) : (
           <div className="preview">
             {/* A shutter flash per capture. Keyed on its own element: re-keying
                 the <img> would tear down and reopen the camera stream. */}
@@ -377,7 +434,9 @@ export default function Models({
                   <div className={`verdict-strip ${pred.accepted ? "yes" : "no"}`}>
                     {pred.accepted ? <CircleCheck size={22} color="#5cc68e" /> : <TriangleAlert size={22} color="#9a958a" />}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <b>{pred.name}</b> <span style={{ opacity: .8 }}>{pred.conf?.toFixed(2)}</span>
+                      {pred.kind === "detect" && !pred.accepted
+                        ? <b>Nothing found</b>
+                        : <><b>{pred.name}</b> <span style={{ opacity: .8 }}>{pred.conf?.toFixed(2)}</span></>}
                       <div style={{ fontSize: 14, opacity: .85 }}>
                         {pred.accepted ? "A run would count this — the step would move forward." : `A run would ignore this: ${pred.why}.`}
                       </div>
@@ -395,8 +454,9 @@ export default function Models({
               </div>
             )}
           </div>
+          )}
 
-          {mode === "capture" ? (
+          {mode === "review" ? null : mode === "capture" ? (
             <>
               <div className="row wrap" style={{ marginTop: 12 }}>
                 <button className="btn btn-primary" disabled={!sel || !camLive || shooting} onClick={() => capture(1)}>
@@ -435,6 +495,9 @@ export default function Models({
           ) : (
             <>
               <div className="probs">
+                {pred?.ok && pred.kind === "detect" && (pred.classes ?? []).length === 0 && (
+                  <div className="faint" style={{ fontSize: 14 }}>No detections in this frame.</div>
+                )}
                 {(pred?.classes ?? []).map((c, i) => (
                   <div key={c.name} className={`prob${i === 0 ? " top" : ""}`}>
                     <span className="ellipsis">{c.name}</span>
@@ -469,6 +532,45 @@ export default function Models({
         <div className="col" style={{ gap: 16 }}>
           <div className="panel panel-pad">
             <PanelHead icon={BrainCircuit} title="Train" />
+            <Seg value={trainMode} onChange={pickMode} block
+                 options={[{ value: "detect", label: "Objects", icon: ScanSearch },
+                           { value: "classify", label: "Whole scene", icon: Aperture }]} />
+            <div className="faint" style={{ fontSize: 13.5, lineHeight: 1.55, margin: "10px 0 12px" }}>
+              {MODE_TEXT[trainMode]}
+            </div>
+            {trainMode === "detect" && (
+              <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+                {review && Object.keys(review.classes).length > 0 ? (
+                  <>
+                    {Object.entries(review.classes).map(([cls, v]) => (
+                      <div key={cls} className="kv">
+                        <span className="mono">{cls}</span>
+                        <span className="mono" style={{ color: v.usable / Math.max(v.total, 1) >= 0.7 ? "var(--ok)" : "var(--caution)" }}>
+                          {v.usable}/{v.total} boxed
+                        </span>
+                      </div>
+                    ))}
+                    {suspects > 0 && (
+                      <Note tone="caution" style={{ marginTop: 8 }}>
+                        {suspects} background photo{suspects > 1 ? "s seem" : " seems"} to
+                        show a {review.label}. {suspects > 1 ? "They are" : "It is"} left out — check in Boxes.
+                      </Note>
+                    )}
+                    <div className="row" style={{ marginTop: 8 }}>
+                      <button className="btn btn-sm" onClick={() => setMode("review")}><BoxSelect size={14} /> Review</button>
+                      <span className="spacer" />
+                      <button className="btn btn-sm btn-ghost" onClick={propose} disabled={proposing}>
+                        {proposing ? "Looking…" : "Look again"}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button className="btn btn-block" onClick={propose} disabled={proposing || !captured}>
+                    <ScanSearch size={16} /> {proposing ? "Looking for the object…" : "Find the object in my photos"}
+                  </button>
+                )}
+              </div>
+            )}
             <div style={{ marginBottom: 12 }}>
               <Check2 ok={withImages.length >= 2} text="At least two classes with images" />
               <Check2 ok={bgImages} text="Background class has images" />
@@ -501,9 +603,9 @@ export default function Models({
                   <span className="spacer" />
                   <span className="faint" style={{ fontSize: 13 }}>more is slower</span>
                 </div>
-                <Seg value={epochs} onChange={setEpochs} options={EPOCHS} block />
+                <Seg value={epochs} onChange={setEpochs} options={EPOCHS[trainMode]} block />
                 <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} disabled={!captured} onClick={train}>
-                  <BrainCircuit size={17} /> {ready ? "Train again" : "Train model"}
+                  <BrainCircuit size={17} /> {trainMode === "detect" ? "Train object detector" : "Train scene classifier"}
                 </button>
               </>
             )}
@@ -525,9 +627,15 @@ export default function Models({
                     </span>
                   </div>
                 ))}
+                {report.taught_with && (
+                  <div className="faint mono" style={{ fontSize: 12.5, marginTop: 6 }}>
+                    taught with {Object.entries(report.taught_with).map(([k, v]) => `${v} ${k}`).join(" · ")}
+                  </div>
+                )}
                 <div className="faint" style={{ fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>
-                  These photos come from your own capture sessions, so a high score is necessary,
-                  not sufficient. Test it live before trusting it.
+                  {modelKind === "detect"
+                    ? "Background is right only when nothing at all is found. Test it live before trusting it."
+                    : "These photos come from your own capture sessions, so a high score is necessary, not sufficient. Test it live before trusting it."}
                 </div>
               </div>
             )}
@@ -538,13 +646,16 @@ export default function Models({
           </div>
 
           <div className={`panel panel-pad${ready && !deployed ? " ready-glow" : ""}`}>
-            <PanelHead icon={Rocket} title="Deploy" right={deployed ? <Badge tone="ok">Live</Badge> : ready ? <Badge tone="accent">Ready</Badge> : null} />
+            <PanelHead icon={Rocket} title="Deploy" right={deployed ? <Badge tone="ok">Live</Badge> : ready ? <Badge tone="accent">{modelKind === "detect" ? "Detector ready" : "Classifier ready"}</Badge> : null} />
             {ready ? (
               <>
                 <div className="faint" style={{ fontSize: 14, lineHeight: 1.55, marginBottom: 12 }}>
                   {targetEntry
-                    ? <>Swap the detector for your model and start <b style={{ color: "var(--ink)" }}>{targetEntry.name}</b>.</>
-                    : "Swap the detector for your model and start a run where each class is one step."}
+                    ? <>{modelKind === "detect" ? "Add your objects beside the 80 stock ones" : "Swap the detector for your classifier"} and
+                        start <b style={{ color: "var(--ink)" }}>{targetEntry.name}</b>.</>
+                    : modelKind === "detect"
+                      ? "Add your objects beside the 80 stock ones and start a run where each of yours is one step."
+                      : "Swap the detector for your classifier and start a run where each class is one step."}
                 </div>
                 <button className="btn btn-primary btn-block" onClick={deploy}><Rocket size={17} /> Deploy & run</button>
               </>
@@ -563,6 +674,80 @@ function Check2({ ok, text }: { ok: boolean; text: string }) {
     <div className={`check ${ok ? "ok" : "no"}`}>
       {ok ? <CircleCheck size={17} /> : <span style={{ width: 17, height: 17, borderRadius: 4, border: "1.5px solid var(--ink-4)", flex: "none" }} />}
       <span style={ok ? undefined : { color: "var(--ink-3)" }}>{text}</span>
+    </div>
+  );
+}
+
+/** Every photo with the box the stock detector proposed. Click to leave one
+ *  out of training -- a wrong box teaches the wrong thing. */
+function BoxGallery({
+  review, onToggle, onPropose, proposing,
+}: {
+  review: BoxReview | null;
+  onToggle: (cls: string, name: string) => void;
+  onPropose: () => void;
+  proposing: boolean;
+}) {
+  if (!review || !review.photos || Object.keys(review.classes).length === 0) {
+    return (
+      <Empty icon={ScanSearch} title="No boxes yet">
+        Capture your photos, then let SARTHI find the object in them.
+        <div style={{ marginTop: 10 }}>
+          <button className="btn btn-primary" onClick={onPropose} disabled={proposing}>
+            <ScanSearch size={16} /> {proposing ? "Looking…" : "Find the object in my photos"}
+          </button>
+        </div>
+      </Empty>
+    );
+  }
+  const excluded = new Set(review.excluded);
+  const weak = new Set(review.weak ?? []);
+  const flagged = new Set(review.flagged);
+  return (
+    <div style={{ maxHeight: "62vh", overflowY: "auto", paddingRight: 4 }}>
+      <div className="faint" style={{ fontSize: 13.5, marginBottom: 10, lineHeight: 1.5 }}>
+        The saffron box is what the detector will learn as your object. Click a photo whose box is
+        wrong to leave it out. Photos with no box are not used; boxes marked <b>faint</b> came from a
+        closer look and deserve a glance.
+      </div>
+      {Object.entries(review.photos).map(([cls, names]) => (
+        <div key={cls} style={{ marginBottom: 14 }}>
+          <div className="row" style={{ marginBottom: 6 }}>
+            <span className="eyebrow">{cls}</span>
+            <span className="spacer" />
+            <span className="mono faint" style={{ fontSize: 12.5 }}>
+              {review.classes[cls]
+                ? `${review.classes[cls].usable}/${review.classes[cls].total} used`
+                : `${names.filter((n) => !excluded.has(`${cls}/${n}`)).length}/${names.length} suspect photos used`}
+            </span>
+          </div>
+          {!review.classes[cls] && (
+            <div className="faint" style={{ fontSize: 13, marginBottom: 6, lineHeight: 1.5 }}>
+              These seem to show a {review.label ?? "target"}, so they are left out: a negative that
+              contains the object teaches “object = nothing”. Click one the detector got wrong to use it.
+            </div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))", gap: 6 }}>
+            {names.map((name) => {
+              const off = excluded.has(`${cls}/${name}`);
+              return (
+                <button key={name} onClick={() => onToggle(cls, name)} title={off ? "Left out — click to use" : "Used — click to leave out"}
+                        style={{ position: "relative", padding: 0, border: `2px solid ${off ? "var(--alert-line)" : "transparent"}`,
+                                 borderRadius: 6, overflow: "hidden", cursor: "pointer", background: "var(--well)", opacity: off ? 0.45 : 1 }}>
+                  <img src={api.boxImage(cls, name)} alt={name} loading="lazy" style={{ display: "block", width: "100%" }} />
+                  {off && <span className="badge alert" style={{ position: "absolute", left: 4, top: 4 }}>left out</span>}
+                  {!off && flagged.has(`${cls}/${name}`) && (
+                    <span className="badge caution" style={{ position: "absolute", left: 4, top: 4 }}>used anyway</span>
+                  )}
+                  {!off && weak.has(`${cls}/${name}`) && (
+                    <span className="badge caution" style={{ position: "absolute", left: 4, top: 4 }}>faint</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

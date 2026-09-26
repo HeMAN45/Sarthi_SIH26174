@@ -54,6 +54,21 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--procedures", default="procedures", help="procedure library directory (for the UI)"
     )
+    ap.add_argument(
+        "--experiments",
+        default=None,
+        help="where experiments saved from the dashboard live (default: <data>/experiments)",
+    )
+    ap.add_argument(
+        "--no-body",
+        action="store_true",
+        help="start with body tracking off, to save CPU (procedures that need it turn it on)",
+    )
+    ap.add_argument(
+        "--no-trained",
+        action="store_true",
+        help="start without the objects trained on this device (stock objects only)",
+    )
     ap.add_argument("--camera", type=int, default=0)
     ap.add_argument(
         "--no-mirror",
@@ -118,6 +133,11 @@ def main(argv: list[str] | None = None) -> int:
         mirror=not args.no_mirror,
     )
 
+    # Objects trained on this device join the stock ones, restarts included.
+    trainer = TrainManager(data_root / "custom")
+    if trainer.kind == "detect" and trainer.model_path and not args.no_trained:
+        session.add_trained(trainer.model_path, keep={c["name"] for c in trainer.list_classes()})
+
     # Any session still marked 'running' belongs to a previous hard kill.
     # Retire it before starting, so the Sessions list reflects reality instead
     # of accumulating phantom runs that never ended.
@@ -127,6 +147,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # The camera belongs to a run: it powers on at Start run and is released
     # at End run, so an idle console is not quietly watching the room.
+    if args.no_body:
+        session.set_body(False)
     session.start(autostart=args.autostart)
 
     # uvicorn.run() hands back no server object, so /api/shutdown would have
@@ -137,9 +159,10 @@ def main(argv: list[str] | None = None) -> int:
     server_app.configure(
         session.store,
         session=session,
-        trainer=TrainManager(data_root / "custom"),
+        trainer=trainer,
         server=server,
         procedures=library,
+        experiments=Path(args.experiments) if args.experiments else data_root / "experiments",
     )
 
     print(f"[web] open  http://localhost:{args.port}")

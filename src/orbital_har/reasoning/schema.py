@@ -15,9 +15,21 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
-PREDICATE_KEYS = frozenset({"detect", "absent", "contact", "moved", "near", "dwell", "count"})
+from orbital_har.core.types import GESTURES
+
+PREDICATE_KEYS = frozenset(
+    {"detect", "absent", "contact", "moved", "near", "dwell", "count", "gesture", "tilted"}
+)
 
 #: Which model field the compact YAML form's value maps onto.
 _ARG_FIELD = {
@@ -27,6 +39,8 @@ _ARG_FIELD = {
     "moved": "obj",
     "near": "obj",
     "dwell": "obj",
+    "gesture": "gesture",
+    "tilted": "obj",
 }
 
 
@@ -62,6 +76,9 @@ class DetectPredicate(_BasePredicate):
     obj_class: str
     min_conf: float = Field(default=DETECTION_FLOOR, ge=0.0, le=1.0)
     hold_frames: int = Field(default=12, ge=1)
+    #: Fraction of the frame the object must fill: "held up to the camera" in a
+    #: procedure where perception reports everything in view.
+    min_area: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class AbsentPredicate(_BasePredicate):
@@ -77,12 +94,42 @@ class ContactPredicate(_BasePredicate):
     b: str
     min_conf: float = Field(default=DETECTION_FLOOR, ge=0.0, le=1.0)
     hold_frames: int = Field(default=3, ge=1)
+    #: Which hand must be touching it. ``any`` accepts either.
+    side: Literal["any", "left", "right"] = "any"
 
 
 class MovedPredicate(_BasePredicate):
+    """The object travelled since the step began.
+
+    ``min_disp_mm`` measures on the rack, in millimetres -- markers needed.
+    ``min_frac`` measures in the picture, as a fraction of the frame -- any
+    webcam. Exactly one of the two.
+    """
+
     kind: Literal["moved"] = "moved"
     obj: str
-    min_disp_mm: float = Field(gt=0.0)
+    min_disp_mm: float | None = Field(default=None, gt=0.0)
+    min_frac: float | None = Field(default=None, gt=0.0, le=1.5)
+
+    @model_validator(mode="after")
+    def _one_measure(self) -> MovedPredicate:
+        if (self.min_disp_mm is None) == (self.min_frac is None):
+            raise ValueError(f"moved '{self.obj}': give exactly one of min_disp_mm or min_frac")
+        return self
+
+
+class TiltedPredicate(_BasePredicate):
+    """The object is tipped over: its box at least ``min_ratio`` as wide as tall.
+
+    A bottle standing up is about three times taller than wide; poured, its
+    box turns roughly square. Held in a hand as well, that is pouring.
+    """
+
+    kind: Literal["tilted"] = "tilted"
+    obj: str
+    min_ratio: float = Field(default=0.65, gt=0.0)
+    min_conf: float = Field(default=DETECTION_FLOOR, ge=0.0, le=1.0)
+    hold_frames: int = Field(default=4, ge=1)
 
 
 class NearPredicate(_BasePredicate):
@@ -106,6 +153,27 @@ class CountPredicate(_BasePredicate):
     n: int = Field(ge=0)
     min_conf: float = Field(default=DETECTION_FLOOR, ge=0.0, le=1.0)
     hold_frames: int = Field(default=12, ge=1)
+
+
+class GesturePredicate(_BasePredicate):
+    """A body action held for ``hold_frames``, read from pose in the body's own frame.
+
+    ``side`` narrows it to one hand; ``any`` accepts either, and two-hand
+    gestures (``hands_together``, ``both_hands_raised``) report ``both``.
+    """
+
+    kind: Literal["gesture"] = "gesture"
+    gesture: str
+    side: Literal["any", "left", "right", "both"] = "any"
+    min_conf: float = Field(default=DETECTION_FLOOR, ge=0.0, le=1.0)
+    hold_frames: int = Field(default=8, ge=1)
+
+    @field_validator("gesture")
+    @classmethod
+    def _known(cls, value: str) -> str:
+        if value not in GESTURES:
+            raise ValueError(f"unknown gesture '{value}'; known: {', '.join(GESTURES)}")
+        return value
 
 
 def _normalize_predicate(value: Any) -> Any:
@@ -146,7 +214,9 @@ _PredicateUnion = Annotated[
     | MovedPredicate
     | NearPredicate
     | DwellPredicate
-    | CountPredicate,
+    | CountPredicate
+    | GesturePredicate
+    | TiltedPredicate,
     Field(discriminator="kind"),
 ]
 
@@ -158,11 +228,13 @@ def predicate_label(p: Any) -> str:
     if p.kind in ("detect", "absent", "count"):
         return f"{p.kind}:{p.obj_class}"
     if p.kind == "contact":
-        return f"contact:{p.a},{p.b}"
+        return f"contact:{p.a},{p.b}" + ("" if p.side == "any" else f"@{p.side}")
     if p.kind == "near":
         return f"near:{p.obj}->{p.to}"
     if p.kind == "dwell":
         return f"dwell:{p.obj}@{p.region}"
+    if p.kind == "gesture":
+        return f"gesture:{p.gesture}" + ("" if p.side == "any" else f"@{p.side}")
     return f"{p.kind}:{p.obj}"
 
 
@@ -338,7 +410,7 @@ class Procedure(BaseModel):
                         raise ValueError(f"{where}: '{p.obj}' is not a declared object")
                     if p.region not in region_ids:
                         raise ValueError(f"{where}: region '{p.region}' is not declared")
-                elif p.kind == "moved" and p.obj not in object_ids:
+                elif p.kind in ("moved", "tilted") and p.obj not in object_ids:
                     raise ValueError(f"{where}: '{p.obj}' is not a declared object")
 
     # ------------------------------------------------------------- accessors
@@ -351,6 +423,31 @@ class Procedure(BaseModel):
     def vocabulary_classes(self) -> set[str]:
         """Detector classes this procedure needs in order to run at all."""
         return {c for o in self.objects for c in o.classes}
+
+    @property
+    def is_scene(self) -> bool:
+        """True when steps relate objects to hands, places or each other.
+
+        Such a procedure needs every object in view reported. A presentation
+        procedure -- "show the bottle to the camera" -- needs only what is held
+        up close, and seeing an object at all then means it is being shown.
+        """
+        kinds = {p.kind for s in self.steps for p in (*s.requires, *s.any_of)}
+        return bool(self.markers) or bool(kinds & {"contact", "near", "moved", "dwell", "count"})
+
+    def step_classes(self, step: StepDef) -> set[str]:
+        """Detector classes a step's evidence is about."""
+        out: set[str] = set()
+        for p in (*step.requires, *step.any_of):
+            if p.kind in ("detect", "absent", "count"):
+                out.add(p.obj_class)
+            elif p.kind == "contact":
+                out |= self.classes_for(p.a) | self.classes_for(p.b)
+            elif p.kind == "near":
+                out |= self.classes_for(p.obj) | self.classes_for(p.to)
+            elif p.kind in ("dwell", "moved", "tilted"):
+                out |= self.classes_for(p.obj)
+        return out
 
     def step(self, step_id: str) -> StepDef:
         for s in self.steps:

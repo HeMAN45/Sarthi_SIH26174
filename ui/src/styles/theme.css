@@ -819,6 +819,9 @@ button.item:hover, .item.clickable:hover { background: var(--tint-2); border-col
 .tag-grid { display: flex; flex-wrap: wrap; gap: 7px; align-content: flex-start; }
 .tag { height: 34px; padding: 0 12px; border-radius: var(--r-xs); border: 1px solid var(--line-2); background: var(--tint-1); color: var(--ink-2); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: all 0.12s; }
 .tag:hover { color: var(--ink); border-color: var(--accent-line); background: var(--accent-soft); }
+/* An object trained on this device: marked, so the operator finds their own first. */
+.tag.mine { color: var(--ink); border-color: var(--accent-line); }
+.tag.mine svg { color: var(--accent); }
 .tag svg { color: var(--ink-3); }
 .tag:hover svg { color: var(--accent); }
 

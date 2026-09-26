@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Bell, CameraOff, MirrorRectangular, Play, RefreshCw, ShieldAlert, TriangleAlert } from "lucide-react";
+import {
+  Bell, CameraOff, Hand, MirrorRectangular, PackageX, PersonStanding, Play, RefreshCw, ShieldAlert,
+  TriangleAlert,
+} from "lucide-react";
 import { api } from "../lib/api";
 import type { LiveState } from "../lib/api";
 import { fmtClock } from "../lib/format";
@@ -62,16 +65,20 @@ export function Feed({ s }: { s: LiveState }) {
 
       <div className="hud bottom">
         {live && <span className="hud-tag">{s.mode} mode</span>}
-        <span className="hud-tag">{detectorLabel(p.detector)}</span>
+        <span className="hud-tag">{detectorLabel(p.detector, p.trained)}</span>
         <span className="spacer" />
         {p.rack_required && (
           <span className={`hud-tag ${p.rack_locked ? "ok" : "bad"}`}>
             Rack {p.rack_locked ? "locked" : "lost"}
           </span>
         )}
-        {p.pose_required && (
-          <span className={`hud-tag ${p.pose_ok ? "ok" : "bad"}`}>Pose {p.pose_ok ? "on" : "off"}</span>
-        )}
+        {p.pose_required && !p.pose_ok && <span className="hud-tag bad">Pose off</span>}
+        <button className={`hud-tag${p.body.enabled ? " on" : ""}`} disabled={p.body.forced}
+                onClick={() => api.body(!p.body.enabled)}
+                title={p.body.forced ? "This procedure's steps need body tracking"
+                  : p.body.enabled ? "Body tracking on — click to save CPU" : "Body tracking off — click to turn on"}>
+          <PersonStanding size={15} /> Body {p.body.enabled ? "on" : "off"}
+        </button>
         <MirrorToggle s={s} />
       </div>
     </>
@@ -116,11 +123,12 @@ export function Standby({
 
         <div className="preflight">
           <Preflight label="Procedure" tone="ok" value={`${s.steps.length} steps · ${s.procedure_id}`} />
-          <Preflight label="Detector" tone="ok" value={detectorLabel(p.detector)} />
+          <Preflight label="Detector" tone="ok" value={detectorLabel(p.detector, p.trained)} />
           <Preflight label="Rack frame" value={p.rack_required ? "Required — locks when live" : "Not needed"} />
-          <Preflight label="Pose / hands" tone={!p.pose_required ? "" : p.pose_ok ? "ok" : "bad"}
-                     value={!p.pose_required ? "Not needed"
-                       : p.pose_ok ? "YOLO11-pose ready" : `Offline: ${p.pose_error ?? "unavailable"}`} />
+          <Preflight label="Body tracking" tone={!p.body.enabled ? "" : p.pose_ok ? "ok" : "bad"}
+                     value={!p.body.enabled ? "Off — pose, hands and gestures paused"
+                       : p.pose_ok ? `YOLO11-pose · hands · gestures${p.body.forced ? " · needed by this procedure" : ""}`
+                       : `Offline: ${p.pose_error ?? "unavailable"}`} />
           <Preflight label="Voice" tone={s.voice.available ? "ok" : "warn"}
                      value={s.voice.available ? `On-device · ${s.voice.model}` : "Browser fallback"} />
           <Preflight label="Camera"
@@ -188,6 +196,8 @@ function sentence(text: string): string {
 const KIND_ICON: Record<string, LucideIcon> = {
   skip: ShieldAlert,
   out_of_order: ShieldAlert,
+  wrong_object: PackageX,
+  wrong_hand: Hand,
 };
 
 /** An alert takes over the top of the feed and stays until acknowledged.

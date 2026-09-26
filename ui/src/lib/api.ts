@@ -22,6 +22,19 @@ export interface Step {
 
 /** Which perception subsystems this procedure needs, and whether they work.
  *  Surfaced so a degraded run is visible rather than silently wrong. */
+export interface BodyGesture { name: string; side: string; conf: number }
+
+/** Body tracking: pose, hands, what the hands touch, and body actions. */
+export interface Body {
+  enabled: boolean;
+  /** A procedure step needs it, so it cannot be switched off. */
+  forced: boolean;
+  ready: boolean;
+  tracked: boolean;
+  gestures: BodyGesture[];
+  contacts: { side: string; object: string }[];
+}
+
 export interface Perception {
   rack_required: boolean;
   rack_locked: boolean;
@@ -29,6 +42,9 @@ export interface Perception {
   pose_ok: boolean;
   pose_error: string | null;
   detector: string;
+  /** Objects trained on this device, detected beside the stock ones. */
+  trained?: string[];
+  body: Body;
 }
 
 export interface CameraStatus {
@@ -97,6 +113,8 @@ export interface LibraryEntry {
   id: string;
   title: string;
   summary: string;
+  /** "builtin" ships with SARTHI; "saved" was built in the dashboard. */
+  source: "builtin" | "saved";
   error?: string;
   name?: string;
   procedure_id?: string;
@@ -104,6 +122,8 @@ export interface LibraryEntry {
   rack?: boolean;
   pose?: boolean;
   classes?: string[];
+  /** The classes only training can provide: the stock detector knows the rest. */
+  train?: string[];
   /** Detector class -> names of the steps that look for it. */
   uses?: Record<string, string[]>;
   missing?: string[];
@@ -139,6 +159,8 @@ export const api = {
   camera: (on: boolean) => post(`/api/camera?on=${on}`),
   /** Selfie-style display. The picture only; coordinates never flip. */
   mirror: (on: boolean) => post(`/api/camera/mirror?on=${on}`),
+  /** Body tracking: pose, hands, contact, gestures. */
+  body: (on: boolean) => post(`/api/body?on=${on}`),
   skip: () => post("/api/skip"),
   /** Seal the run, release the camera, exit the process. */
   shutdown: () => post("/api/shutdown"),
@@ -157,17 +179,33 @@ export const api = {
     return { ...body, ok: r.ok && !!body.ok, status: r.status };
   },
   classes: () => fetch("/api/classes").then(j<string[]>),
-  build: (sequence: string[], name?: string) =>
+  /** Run builder steps once, without saving them. */
+  runSteps: (steps: StepSpec[], name?: string) =>
     fetch("/api/build", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sequence, name, start: true }),
+      body: JSON.stringify({ steps, name, start: true }),
     }).then((r) => r.json() as Promise<{ ok: boolean; error?: string }>),
+
+  // ---- saved experiments
+  saveExperiment: (name: string, steps: StepSpec[], id?: string) =>
+    fetch("/api/experiments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, steps, id }),
+    }).then((r) => r.json() as Promise<{ ok: boolean; id?: string; error?: string }>),
+  experiment: (id: string) =>
+    fetch(`/api/experiments/${encodeURIComponent(id)}`)
+      .then((r) => r.json() as Promise<{ ok: boolean; name?: string; steps?: StepSpec[]; error?: string }>),
+  deleteExperiment: (id: string) =>
+    fetch(`/api/experiments/${encodeURIComponent(id)}`, { method: "DELETE" })
+      .then((r) => r.json() as Promise<{ ok: boolean; error?: string }>),
 
   // ---- training
   trainClasses: () =>
     fetch("/api/train/classes").then(
-      j<{ classes: TrainClass[]; status: TrainStatus; model_ready: boolean; advice: string[] }>
+      j<{ classes: TrainClass[]; status: TrainStatus; model_ready: boolean;
+          model_kind: TrainMode; advice: string[] }>
     ),
   addClass: (name: string) => {
     const fd = new FormData();
@@ -194,8 +232,8 @@ export const api = {
     return fetch("/api/train/video", { method: "POST", body: fd })
       .then((r) => r.json() as Promise<{ ok: boolean; saved?: number; error?: string }>);
   },
-  startTrain: (epochs: number) =>
-    fetch(`/api/train/start?epochs=${epochs}`, { method: "POST" })
+  startTrain: (epochs: number, mode: TrainMode) =>
+    fetch(`/api/train/start?epochs=${epochs}&mode=${mode}`, { method: "POST" })
       .then((r) => r.json() as Promise<{ ok: boolean; message: string }>),
   trainStatus: () =>
     fetch("/api/train/status").then(j<{ status: TrainStatus; model_ready: boolean }>),
@@ -210,6 +248,15 @@ export const api = {
       .then((r) => r.json() as Promise<{ ok: boolean; created?: string[]; error?: string }>),
   /** The trained model's verdict on the current frame, by the live-run rule. */
   predict: () => fetch("/api/train/predict").then((r) => r.json() as Promise<Prediction>),
+  /** Let the stock detector find the object in every photo, for review. */
+  proposeBoxes: () =>
+    fetch("/api/train/boxes/propose", { method: "POST" }).then((r) => r.json() as Promise<BoxReview>),
+  boxes: () => fetch("/api/train/boxes").then((r) => r.json() as Promise<BoxReview>),
+  toggleBox: (cls: string, name: string) =>
+    fetch(`/api/train/boxes/toggle?cls=${encodeURIComponent(cls)}&name=${encodeURIComponent(name)}`,
+          { method: "POST" }).then((r) => r.json() as Promise<{ ok: boolean; excluded: boolean }>),
+  boxImage: (cls: string, name: string) =>
+    `/api/train/boxes/image?cls=${encodeURIComponent(cls)}&name=${encodeURIComponent(name)}`,
 
   // ---- archive
   sessions: () => fetch("/api/sessions?limit=200").then(j<SessionRow[]>),
@@ -222,6 +269,31 @@ export const api = {
 
 export interface TrainClass { name: string; count: number; background: boolean }
 
+/** "detect" learns where the object is (boxes); "classify" learns whole scenes. */
+export type TrainMode = "detect" | "classify";
+
+/** One builder step: an object, a body action, or both, in the operator's words. */
+export interface StepSpec {
+  object?: string | null;
+  gesture?: string | null;
+  instruction?: string | null;
+  /** Which hand must do it: "any", "left" or "right". */
+  hand?: string;
+  /** What is done with the object: "show", "hold", "pour" or "move". */
+  how?: string;
+}
+
+export interface BoxReview {
+  ok: boolean;
+  classes: Record<string, { total: number; found: number; usable: number }>;
+  flagged: string[];
+  excluded: string[];
+  /** Faint boxes from the closer look -- worth a glance before training. */
+  weak?: string[];
+  label: string | null;
+  photos?: Record<string, string[]>;
+}
+
 export interface TrainStatus {
   state: "idle" | "training" | "done" | "error";
   message: string;
@@ -229,7 +301,12 @@ export interface TrainStatus {
   epochs: number;
   model?: string;
   /** Held-out accuracy, per class. */
-  report?: { accuracy: number | null; per_class: Record<string, { correct: number; total: number }> };
+  report?: {
+    accuracy: number | null;
+    per_class: Record<string, { correct: number; total: number }>;
+    taught_with?: Record<string, number>;
+  };
+  kind?: TrainMode;
 }
 
 export interface Prediction {
@@ -242,6 +319,7 @@ export interface Prediction {
   accepted?: boolean;
   why?: string;
   classes?: { name: string; conf: number }[];
+  kind?: TrainMode;
 }
 
 export interface SessionRow {

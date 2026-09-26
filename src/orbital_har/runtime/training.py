@@ -33,7 +33,13 @@ from typing import Any
 import cv2
 import numpy as np
 
-from orbital_har.perception.detect import BACKGROUND_CLASS, classify_verdict, is_background
+from orbital_har.perception.detect import (
+    BACKGROUND_CLASS,
+    BOX_MIN_CONF,
+    classify_verdict,
+    is_background,
+)
+from orbital_har.runtime.boxes import BoxProposals, image_verdict
 
 #: Images per class below which a classifier rarely generalises across angle,
 #: distance and light. Three is the hard floor; this is the advice.
@@ -43,6 +49,9 @@ RECOMMENDED_PER_CLASS = 20
 #: capture order rather than taken from the front, where a burst of near
 #: identical frames would make validation a copy of training.
 _VAL_EVERY = 5
+
+#: "detect" learns where the object is (boxes); "classify" learns whole scenes.
+MODES = ("detect", "classify")
 
 
 def slug(name: str) -> str:
@@ -62,6 +71,9 @@ class TrainManager:
         self.status: dict[str, Any] = {"state": "idle", "message": "", "epoch": 0, "epochs": 0}
         self._test_model: Any = None
         self._test_path: str | None = None
+        #: What the current model is: a detector ("detect") or a classifier.
+        self.kind = "classify"
+        self.boxes = BoxProposals(self.images, root / "boxes.json")
         self._restore()
 
     # ---------------------------------------------------------------- record
@@ -83,6 +95,7 @@ class TrainManager:
         model = rec.get("model")
         if model and Path(model).is_file():
             self.model_path = model
+            self.kind = rec.get("kind", "classify")
             self.status = {
                 "state": "done",
                 "message": f"trained {rec.get('trained_at', 'earlier')}",
@@ -90,6 +103,7 @@ class TrainManager:
                 "epochs": rec.get("epochs", 0),
                 "model": model,
                 "report": rec.get("report"),
+                "kind": self.kind,
             }
 
     # --------------------------------------------------------------- dataset
@@ -112,10 +126,13 @@ class TrainManager:
         have = {c["name"] for c in self.list_classes()}
         return [self.add_class(n) for n in wanted if slug(n) not in have]
 
-    def delete_class(self, name: str) -> None:
+    def delete_class(self, name: str) -> str | None:
+        """Delete a class folder; returns the class name if there was one."""
         d = self.images / slug(name)
-        if d.is_dir():
-            shutil.rmtree(d, ignore_errors=True)
+        if not d.is_dir():
+            return None
+        shutil.rmtree(d, ignore_errors=True)
+        return d.name
 
     def add_images(self, name: str, blobs: list[bytes]) -> int:
         d = self.images / self.add_class(name)
@@ -231,14 +248,151 @@ class TrainManager:
             )
         return True, ""
 
-    def train(self, epochs: int = 15) -> tuple[bool, str]:
+    def train(self, epochs: int = 15, mode: str = "classify") -> tuple[bool, str]:
         if self.status["state"] == "training":
             return False, "already training"
+        if mode not in MODES:
+            return False, f"unknown mode '{mode}'"
         ok, msg = self.can_train()
         if not ok:
             return False, msg
-        threading.Thread(target=self._train, args=(epochs,), daemon=True).start()
+        target = self._train_detector if mode == "detect" else self._train
+        threading.Thread(target=target, args=(epochs,), daemon=True).start()
         return True, "started"
+
+    # ------------------------------------------------------------ detector
+
+    def _split_classes(self) -> tuple[list[str], str | None]:
+        classes = [c for c in self.list_classes() if c["count"] > 0]
+        targets = [c["name"] for c in classes if not c["background"]]
+        background = next((c["name"] for c in classes if c["background"]), None)
+        return targets, background
+
+    def propose(self) -> dict[str, Any]:
+        """Let the stock detector find the object in every photo, for review."""
+        targets, background = self._split_classes()
+        return self.boxes.propose(targets, background)
+
+    def box_summary(self) -> dict[str, Any]:
+        targets, _ = self._split_classes()
+        return self.boxes.summary(targets)
+
+    def _train_detector(self, epochs: int) -> None:
+        """Boxes -> dataset -> fine-tune the stock detector on the states."""
+        from ultralytics import YOLO
+
+        with self._lock:
+            self.status = {
+                "state": "training",
+                "message": "finding the object in your photos",
+                "epoch": 0,
+                "epochs": epochs,
+                "kind": "detect",
+            }
+        try:
+            targets, background = self._split_classes()
+            if not self.boxes.data.get("boxes"):
+                self.boxes.propose(targets, background)
+            ds = self.root / "det_dataset"
+            counts = self.boxes.build(ds, targets, background, _VAL_EVERY)
+            if not all(counts.get(t, 0) >= 3 for t in targets):
+                thin = [t for t in targets if counts.get(t, 0) < 3]
+                raise ValueError(
+                    "too few photos with the object found in them: "
+                    + ", ".join(f"{t} ({counts.get(t, 0)})" for t in thin)
+                )
+            self.status["message"] = "training"
+            model = YOLO("yolo11n.pt")  # COCO weights: already localises books, bottles
+
+            def on_epoch(trainer) -> None:
+                self.status["epoch"] = int(getattr(trainer, "epoch", 0)) + 1
+
+            model.add_callback("on_train_epoch_end", on_epoch)
+            model.train(
+                data=str((ds / "data.yaml").resolve()),
+                epochs=epochs,
+                # 416 rather than 640: a hand-held object fills a tenth of the frame
+                # or more, and a laptop CPU pays for every extra pixel.
+                imgsz=416,
+                batch=8,
+                workers=0,
+                verbose=False,
+                plots=False,
+                project=str((self.root / "runs").resolve()),
+                name="det",
+                exist_ok=True,
+            )
+            best = Path(model.trainer.best)
+            if not best.exists():
+                raise FileNotFoundError(f"trained weights not found at {best}")
+            self.status = {
+                "state": "training",
+                "message": "scoring on held-out images",
+                "epoch": epochs,
+                "epochs": epochs,
+                "kind": "detect",
+            }
+            report = self.evaluate_detector(best, ds, background)
+            report["taught_with"] = counts
+            self._finish(best, epochs, report, "detect")
+        except Exception as exc:  # pragma: no cover - demo aid
+            self.status = {
+                "state": "error",
+                "message": str(exc),
+                "epoch": 0,
+                "epochs": epochs,
+                "kind": "detect",
+            }
+
+    @staticmethod
+    def evaluate_detector(weights: Path, dataset: Path, background: str | None) -> dict[str, Any]:
+        """Per-photo accuracy on held-out images.
+
+        A target photo is right when the strongest detection is its class; a
+        background photo is right when nothing is detected at all -- the case
+        the whole-frame classifier could never get right.
+        """
+        from ultralytics import YOLO
+
+        model = YOLO(str(weights))
+        per: dict[str, dict[str, int]] = {}
+        for img in sorted((dataset / "images" / "val").glob("*.jpg")):
+            cls = img.stem.split("__", 1)[0]
+            found = image_verdict(model, cv2.imread(str(img)), BOX_MIN_CONF)["detections"]
+            top = found[0]["name"] if found else None
+            right = top is None if cls == background else top == cls
+            slot = per.setdefault(cls, {"correct": 0, "total": 0})
+            slot["total"] += 1
+            slot["correct"] += int(right)
+        total = sum(v["total"] for v in per.values())
+        correct = sum(v["correct"] for v in per.values())
+        return {"accuracy": round(correct / total, 3) if total else None, "per_class": per}
+
+    def _finish(self, best: Path, epochs: int, report: dict[str, Any], kind: str) -> None:
+        self.model_path = str(best)
+        self.kind = kind
+        self._record.write_text(
+            json.dumps(
+                {
+                    "model": str(best),
+                    "kind": kind,
+                    "epochs": epochs,
+                    "report": report,
+                    "trained_at": time.strftime("%Y-%m-%d %H:%M"),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        self.status = {
+            "state": "done",
+            "message": f"trained: {best.name}",
+            "epoch": epochs,
+            "epochs": epochs,
+            "model": str(best),
+            "report": report,
+            "kind": kind,
+        }
 
     def _build_split(self) -> Path:
         """Train/val folders with no image in both.
@@ -306,27 +460,7 @@ class TrainManager:
                 "epochs": epochs,
             }
             report = self.evaluate(best, ds / "val")
-            self.model_path = str(best)
-            self._record.write_text(
-                json.dumps(
-                    {
-                        "model": str(best),
-                        "epochs": epochs,
-                        "report": report,
-                        "trained_at": time.strftime("%Y-%m-%d %H:%M"),
-                    },
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
-            self.status = {
-                "state": "done",
-                "message": f"trained: {best.name}",
-                "epoch": epochs,
-                "epochs": epochs,
-                "model": str(best),
-                "report": report,
-            }
+            self._finish(best, epochs, report, "classify")
         except Exception as exc:  # pragma: no cover - demo aid
             self.status = {"state": "error", "message": str(exc), "epoch": 0, "epochs": epochs}
 
@@ -385,7 +519,7 @@ class TrainManager:
         model = self._model()
         return [] if model is None else [model.names[i] for i in sorted(model.names)]
 
-    def predict(self, blob: bytes) -> dict[str, Any] | None:
+    def predict(self, blob: bytes, min_area: float = 0.0) -> dict[str, Any] | None:
         """What the trained model makes of one camera frame, and whether it counts.
 
         Uses the same acceptance rule as live supervision, so "would complete
@@ -397,6 +531,21 @@ class TrainManager:
         img = cv2.imdecode(np.frombuffer(blob, dtype=np.uint8), cv2.IMREAD_COLOR)
         if img is None:
             return None
+        if self.kind == "detect":
+            found = image_verdict(model, img, BOX_MIN_CONF)["detections"]
+            # A run presenting objects counts only what is held up close.
+            close = [d for d in found if d["area"] >= min_area]
+            top = close[0] if close else (found[0] if found else None)
+            why = "" if close else ("too small in frame -- hold it closer" if found else "")
+            return {
+                "name": top["name"] if top else "nothing",
+                "conf": top["conf"] if top else 0.0,
+                "margin": 0.0,
+                "accepted": bool(close),
+                "why": why or ("" if top else "no object found"),
+                "classes": found,
+                "kind": "detect",
+            }
         result = model.predict(img, verbose=False)[0]
         v = classify_verdict(model.names, result.probs.data.tolist())
         return {
@@ -406,4 +555,5 @@ class TrainManager:
             "accepted": v.accepted,
             "why": v.why,
             "classes": [{"name": n, "conf": c} for n, c in v.ranked],
+            "kind": "classify",
         }

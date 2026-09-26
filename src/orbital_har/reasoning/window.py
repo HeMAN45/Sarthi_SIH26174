@@ -11,7 +11,14 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from orbital_har.core.types import Contact, DetectedObject, Event, EventType, RackState
+from orbital_har.core.types import (
+    Contact,
+    DetectedObject,
+    Event,
+    EventType,
+    Gesture,
+    RackState,
+)
 
 DEFAULT_CAPACITY = 240  # ~8 s at 30 FPS
 
@@ -26,14 +33,29 @@ class FrameSnapshot:
     height: int = 720
     objects: list[DetectedObject] = field(default_factory=list)
     contacts: list[Contact] = field(default_factory=list)
+    gestures: list[Gesture] = field(default_factory=list)
     rack: RackState | None = None
 
-    def best(self, classes: set[str], min_conf: float = 0.0) -> DetectedObject | None:
-        """Highest-confidence detection whose class is in ``classes``."""
-        candidates = [o for o in self.objects if o.cls in classes and o.conf >= min_conf]
+    def best(
+        self, classes: set[str], min_conf: float = 0.0, min_area: float = 0.0
+    ) -> DetectedObject | None:
+        """Highest-confidence detection whose class is in ``classes``.
+
+        ``min_area`` is the fraction of the frame the object must fill.
+        """
+        candidates = [
+            o
+            for o in self.objects
+            if o.cls in classes and o.conf >= min_conf and self.area(o) >= min_area
+        ]
         if not candidates:
             return None
         return max(candidates, key=lambda o: o.conf)
+
+    def area(self, obj: DetectedObject) -> float:
+        """The fraction of the frame an object's box covers."""
+        x0, y0, x1, y1 = obj.bbox
+        return max(0.0, x1 - x0) * max(0.0, y1 - y0) / float(max(self.width * self.height, 1))
 
     def count(self, class_name: str, min_conf: float) -> int:
         return sum(1 for o in self.objects if o.cls == class_name and o.conf >= min_conf)
@@ -43,6 +65,15 @@ class FrameSnapshot:
             if o.track_id == track_id:
                 return o
         return None
+
+    def gesture(self, name: str, side: str = "any", min_conf: float = 0.0) -> Gesture | None:
+        """The most confident sighting of a body action this frame."""
+        hits = [
+            g
+            for g in self.gestures
+            if g.name == name and (side == "any" or g.side == side) and g.conf >= min_conf
+        ]
+        return max(hits, key=lambda g: g.conf) if hits else None
 
     def marker_pos(self, marker_id: str) -> tuple[float, float, float] | None:
         if self.rack is None or not self.rack.found:
@@ -129,6 +160,8 @@ class SnapshotAssembler:
             snap.contacts.extend(Contact.from_dict(c) for c in payload.get("pairs", []))
         elif event.type == EventType.RACK.value:
             snap.rack = RackState.from_dict(payload)
+        elif event.type == EventType.GESTURE.value:
+            snap.gestures.extend(Gesture.from_dict(g) for g in payload.get("gestures", []))
 
         return finished
 

@@ -28,12 +28,14 @@ from fastapi.responses import (
     FileResponse,
     HTMLResponse,
     JSONResponse,
+    Response,
     StreamingResponse,
 )
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from orbital_har.reasoning.schema import Procedure, ProcedureError
+from orbital_har.runtime.experiments import ExperimentStore, compose, spec_of
 from orbital_har.runtime.session import LiveSession, build_procedure, perception_needs
 from orbital_har.runtime.store import Store
 from orbital_har.runtime.telemetry import verify
@@ -87,6 +89,7 @@ _session: LiveSession | None = None
 _trainer: TrainManager | None = None
 _server: Any = None  # uvicorn.Server, held so /api/shutdown can exit
 _procedures: Path | None = None
+_experiments: ExperimentStore | None = None
 _start_time: float = 0.0
 
 #: A library id is a file stem, never a path.
@@ -99,14 +102,16 @@ def configure(
     trainer: TrainManager | None = None,
     server: Any = None,
     procedures: Path | None = None,
+    experiments: Path | None = None,
 ) -> None:
     """Wire in runtime dependencies. Called before uvicorn starts."""
-    global _store, _session, _trainer, _server, _procedures, _start_time
+    global _store, _session, _trainer, _server, _procedures, _experiments, _start_time
     _store = store
     _session = session
     _trainer = trainer
     _server = server
     _procedures = procedures
+    _experiments = ExperimentStore(experiments) if experiments is not None else None
     _start_time = time.monotonic()
 
 
@@ -342,6 +347,14 @@ async def api_camera(on: bool = True) -> JSONResponse:
     return JSONResponse({"ok": True, "on": on})
 
 
+@app.post("/api/body")
+async def api_body(on: bool = True) -> JSONResponse:
+    """Body tracking -- pose, hands, contact, gestures. Off saves CPU on a weak
+    machine; a procedure whose steps need it keeps it on regardless."""
+    live().set_body(on)
+    return JSONResponse({"ok": True, "on": on})
+
+
 @app.post("/api/camera/mirror")
 async def api_camera_mirror(on: bool = True) -> JSONResponse:
     """Selfie-style display. The picture only: coordinates never flip."""
@@ -376,8 +389,23 @@ async def api_classes() -> JSONResponse:
     return JSONResponse(live().all_classes)
 
 
+class StepSpec(BaseModel):
+    """One builder step: an object, a body action, or both, in own words.
+
+    ``how`` the object is used -- show, hold, pour, move -- and which ``hand``
+    must do it: any, left or right.
+    """
+
+    object: str | None = None
+    gesture: str | None = None
+    instruction: str | None = None
+    hand: str = "any"
+    how: str = "show"
+
+
 class BuildRequest(BaseModel):
-    sequence: list[str]
+    sequence: list[str] = []
+    steps: list[StepSpec] | None = None
     name: str | None = None
     start: bool = True
 
@@ -385,15 +413,28 @@ class BuildRequest(BaseModel):
 @app.post("/api/build")
 async def api_build(req: BuildRequest) -> JSONResponse:
     session = live()
-    seq = [c.strip() for c in req.sequence if c and c.strip()]
-    # Open-vocab: accept any typed object. Fixed model: only its known classes.
-    valid = set(seq) if session.detector.open_vocab else set(session.all_classes)
+    name = req.name or "Custom experiment"
     try:
-        proc = build_procedure(seq, valid, name=req.name or "Custom experiment")
+        if req.steps is not None:
+            specs = [s.model_dump() for s in req.steps]
+            # A step waiting on an object this detector cannot see would stall
+            # the run for no reason the operator could guess (invariant #10).
+            if not session.detector.open_vocab:
+                known = set(session.all_classes)
+                wanted = {(s["object"] or "").strip() for s in specs} - {""}
+                unknown = sorted(wanted - known)
+                if unknown:
+                    raise ValueError(f"the detector does not know {', '.join(unknown)}")
+            proc = compose(specs, name)
+        else:
+            seq = [c.strip() for c in req.sequence if c and c.strip()]
+            # Open-vocab: accept any typed object. Fixed model: its classes only.
+            valid = set(seq) if session.detector.open_vocab else set(session.all_classes)
+            proc = build_procedure(seq, valid, name=name)
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     session.load_procedure(proc, start=req.start)
-    return JSONResponse({"ok": True, "steps": len(seq)})
+    return JSONResponse({"ok": True, "steps": len(proc.steps)})
 
 
 # ---------------------------------------------------------------------------
@@ -429,11 +470,31 @@ def _describe(path: Path) -> tuple[str, str]:
     return head[0], " ".join(para)
 
 
+def _to_train(proc: Procedure) -> list[str]:
+    """The classes a procedure needs that only training can provide.
+
+    The stock detector's objects never need training -- a trained detector is
+    added beside it, not instead of it.
+    """
+    stock = set(_session.detector.base_classes) if _session is not None else set()
+    return sorted(proc.vocabulary_classes - stock)
+
+
+def _library_files() -> list[tuple[Path, str]]:
+    """Every procedure file with its source: built-in first, then saved."""
+    files = [(p, "builtin") for p in sorted(_library().glob("*.yaml"))]
+    if _experiments is not None:
+        files += [(_experiments.path(i), "saved") for i in _experiments.ids()]
+    return files
+
+
 def _library_procedure(proc_id: str) -> Procedure | JSONResponse:
     """A library procedure by file stem, or the error response explaining why not."""
     if not _PROC_ID.fullmatch(proc_id):
         return JSONResponse({"ok": False, "error": "invalid procedure id"}, status_code=400)
     path = _library() / f"{proc_id}.yaml"
+    if not path.is_file() and _experiments is not None:
+        path = _experiments.path(proc_id)
     if not path.is_file():
         return JSONResponse({"ok": False, "error": f"no procedure '{proc_id}'"}, status_code=404)
     try:
@@ -446,23 +507,15 @@ def _class_uses(proc: Procedure) -> dict[str, list[str]]:
     """Detector class -> the steps that look for it.
 
     Shown beside each class while capturing, so the operator knows what a
-    photo of ``holding_closed`` has to prove (picked up, and later re-capped).
+    photo of ``bottle_open`` has to prove (opened, then drunk from). Body
+    actions name no class: there is nothing to train for them.
     """
     uses: dict[str, list[str]] = {}
     for step in proc.steps:
-        for p in (*step.requires, *step.any_of):
-            if p.kind in ("detect", "absent", "count"):
-                classes = {p.obj_class}
-            elif p.kind == "contact":
-                classes = proc.classes_for(p.a) | proc.classes_for(p.b)
-            elif p.kind == "near":
-                classes = proc.classes_for(p.obj) | proc.classes_for(p.to)
-            else:
-                classes = proc.classes_for(p.obj)
-            for c in sorted(classes):
-                names = uses.setdefault(c, [])
-                if step.name not in names:
-                    names.append(step.name)
+        for c in sorted(proc.step_classes(step)):
+            names = uses.setdefault(c, [])
+            if step.name not in names:
+                names.append(step.name)
     return uses
 
 
@@ -471,9 +524,14 @@ async def api_procedures() -> JSONResponse:
     """Every procedure in the library, and whether this detector can run it."""
     session = live()
     out: list[dict[str, Any]] = []
-    for path in sorted(_library().glob("*.yaml")):
+    for path, source in _library_files():
         title, summary = _describe(path)
-        entry: dict[str, Any] = {"id": path.stem, "title": title, "summary": summary}
+        entry: dict[str, Any] = {
+            "id": path.stem,
+            "title": title,
+            "summary": summary,
+            "source": source,
+        }
         try:
             proc = Procedure.load(path)
         except ProcedureError as exc:
@@ -490,6 +548,7 @@ async def api_procedures() -> JSONResponse:
                 "rack": rack,
                 "pose": pose,
                 "classes": sorted(proc.vocabulary_classes),
+                "train": _to_train(proc),
                 "uses": _class_uses(proc),
                 "missing": session.missing_classes(proc),
                 "loaded": proc.procedure.id == session.proc.procedure.id,
@@ -530,6 +589,66 @@ async def api_procedure_load(req: LoadRequest) -> JSONResponse:
     return JSONResponse({"ok": True, "name": proc.procedure.name, "missing": missing})
 
 
+def _saved() -> ExperimentStore:
+    if _experiments is None:
+        raise HTTPException(status_code=503, detail="saving experiments is not enabled")
+    return _experiments
+
+
+class ExperimentRequest(BaseModel):
+    name: str
+    steps: list[StepSpec]
+    #: Present when editing: overwrite this experiment instead of adding one.
+    id: str | None = None
+
+
+@app.post("/api/experiments")
+async def api_experiment_save(req: ExperimentRequest) -> JSONResponse:
+    """Save a builder experiment under its name, as a procedure file."""
+    store = _saved()
+    if not req.name.strip():
+        return JSONResponse({"ok": False, "error": "give the experiment a name"}, status_code=400)
+    if req.id is not None and (not _PROC_ID.fullmatch(req.id) or not store.path(req.id).is_file()):
+        return JSONResponse(
+            {"ok": False, "error": f"no saved experiment '{req.id}'"}, status_code=404
+        )
+    taken = {p.stem for p in _library().glob("*.yaml")}
+    try:
+        exp_id = store.save(
+            req.name, [s.model_dump() for s in req.steps], exp_id=req.id, taken=taken
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "id": exp_id})
+
+
+@app.get("/api/experiments/{exp_id}")
+async def api_experiment_get(exp_id: str) -> JSONResponse:
+    """A saved experiment as builder steps, to edit it."""
+    store = _saved()
+    if not _PROC_ID.fullmatch(exp_id) or not store.path(exp_id).is_file():
+        return JSONResponse(
+            {"ok": False, "error": f"no saved experiment '{exp_id}'"}, status_code=404
+        )
+    try:
+        proc = Procedure.load(store.path(exp_id))
+    except ProcedureError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=422)
+    return JSONResponse(
+        {"ok": True, "id": exp_id, "name": proc.procedure.name, "steps": spec_of(proc)}
+    )
+
+
+@app.delete("/api/experiments/{exp_id}")
+async def api_experiment_delete(exp_id: str) -> JSONResponse:
+    store = _saved()
+    if not _PROC_ID.fullmatch(exp_id) or not store.delete(exp_id):
+        return JSONResponse(
+            {"ok": False, "error": f"no saved experiment '{exp_id}'"}, status_code=404
+        )
+    return JSONResponse({"ok": True})
+
+
 # ---------------------------------------------------------------------------
 # On-device training
 # ---------------------------------------------------------------------------
@@ -543,6 +662,7 @@ async def train_classes() -> JSONResponse:
             "classes": manager.list_classes(),
             "status": manager.status,
             "model_ready": manager.model_path is not None,
+            "model_kind": manager.kind,
             "advice": manager.advice(),
         }
     )
@@ -555,8 +675,58 @@ async def train_prepare(procedure: str) -> JSONResponse:
     proc = _library_procedure(procedure)
     if isinstance(proc, JSONResponse):
         return proc
-    created = manager.prepare(sorted(proc.vocabulary_classes))
+    created = manager.prepare(_to_train(proc))
     return JSONResponse({"ok": True, "created": created, "name": proc.procedure.name})
+
+
+def _box_review(manager: TrainManager, summary: dict[str, Any]) -> JSONResponse:
+    """The summary plus every photo the review grid shows, per class."""
+    photos = {
+        cls: sorted(manager.boxes.data.get("boxes", {}).get(cls, {})) for cls in summary["classes"]
+    }
+    for key in summary["flagged"]:  # background photos that seem to show the object
+        cls, name = key.split("/", 1)
+        photos.setdefault(cls, []).append(name)
+    return JSONResponse({"ok": True, **summary, "photos": photos})
+
+
+@app.post("/api/train/boxes/propose")
+def train_boxes_propose() -> JSONResponse:
+    """Let the stock detector find the object in every photo, for review."""
+    manager = trainer()
+    return _box_review(manager, manager.propose())
+
+
+@app.get("/api/train/boxes")
+def train_boxes() -> JSONResponse:
+    """Proposed boxes per class, with exclusions and suspicious background photos."""
+    manager = trainer()
+    return _box_review(manager, manager.box_summary())
+
+
+def _box_key(cls: str, name: str) -> tuple[str, str] | None:
+    if not _PROC_ID.fullmatch(cls) or not re.fullmatch(r"[A-Za-z0-9_\-]{1,64}\.jpg", name):
+        return None
+    return cls, name
+
+
+@app.get("/api/train/boxes/image")
+def train_box_image(cls: str, name: str) -> Response:
+    """One photo with its proposed box drawn -- the review grid's tiles."""
+    key = _box_key(cls, name)
+    blob = trainer().boxes.thumbnail(*key) if key else None
+    if blob is None:
+        return JSONResponse({"ok": False, "error": "no such photo"}, status_code=404)
+    return Response(blob, media_type="image/jpeg")
+
+
+@app.post("/api/train/boxes/toggle")
+def train_box_toggle(cls: str, name: str) -> JSONResponse:
+    """Exclude a wrong box from training, or bring it back."""
+    key = _box_key(cls, name)
+    if key is None:
+        return JSONResponse({"ok": False, "error": "no such photo"}, status_code=404)
+    return JSONResponse({"ok": True, "excluded": trainer().boxes.toggle(f"{cls}/{name}")})
 
 
 @app.get("/api/train/predict")
@@ -574,7 +744,10 @@ def train_predict() -> JSONResponse:
     if blob is None:
         why = "camera is off -- turn it on first" if not session.camera_on else "no camera frame"
         return JSONResponse({"ok": False, "error": why}, status_code=400)
-    verdict = manager.predict(blob)
+    # The same floor a run applies: a presentation counts only what is held
+    # up close; a scene procedure counts everything in view.
+    floor = 0.0 if session.proc.is_scene else session.min_area
+    verdict = manager.predict(blob, min_area=floor)
     if verdict is None:
         return JSONResponse({"ok": False, "error": "could not run the model"}, status_code=500)
     return JSONResponse({"ok": True, **verdict})
@@ -587,7 +760,11 @@ async def train_add_class(name: str = Form(...)) -> JSONResponse:
 
 @app.delete("/api/train/class")
 async def train_del_class(name: str) -> JSONResponse:
-    trainer().delete_class(name)
+    """Delete a class and its photos; a deployed model stops reporting it too."""
+    manager = trainer()
+    gone = manager.delete_class(name)
+    if _session is not None and gone:
+        _session.retire_trained({gone})
     return JSONResponse({"ok": True})
 
 
@@ -618,8 +795,9 @@ async def train_capture(name: str) -> JSONResponse:
 
 
 @app.post("/api/train/start")
-async def train_start(epochs: int = 15) -> JSONResponse:
-    ok, msg = trainer().train(epochs)
+async def train_start(epochs: int = 15, mode: str = "classify") -> JSONResponse:
+    """Train on-device: ``detect`` learns where the object is, ``classify`` whole scenes."""
+    ok, msg = trainer().train(epochs, mode)
     return JSONResponse({"ok": ok, "message": msg}, status_code=200 if ok else 400)
 
 
@@ -633,8 +811,9 @@ async def train_status() -> JSONResponse:
 def train_use(procedure: str | None = None) -> JSONResponse:
     """Deploy the trained classifier and start a run.
 
-    With ``procedure`` the run follows that library procedure, which must use
-    only classes the model was trained on; without, each class is one step.
+    With ``procedure`` the run follows that library procedure, whose classes
+    the model must provide -- a detector together with the stock objects it
+    joins, a classifier alone. Without, each trained class is one step.
     """
     manager = trainer()
     if not manager.model_path:
@@ -644,7 +823,10 @@ def train_use(procedure: str | None = None) -> JSONResponse:
         proc = _library_procedure(procedure)
         if isinstance(proc, JSONResponse):
             return proc
-        missing = sorted(proc.vocabulary_classes - set(manager.model_classes()))
+        known = set(manager.model_classes())
+        if manager.kind == "detect":
+            known |= set(live().detector.base_classes)
+        missing = sorted(proc.vocabulary_classes - known)
         if missing:
             return JSONResponse(
                 {
@@ -654,7 +836,7 @@ def train_use(procedure: str | None = None) -> JSONResponse:
                 },
                 status_code=409,
             )
-    live().use_classifier(manager.model_path, proc)
+    live().use_classifier(manager.model_path, proc, manager.kind)
     return JSONResponse({"ok": True, "model": manager.model_path})
 
 

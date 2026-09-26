@@ -101,8 +101,19 @@ class PerceptionPipeline:
         *,
         wanted: set[str],
         min_area: float = 0.06,
+        mirror: bool = False,
     ) -> Observation:
-        """Perceive one frame. Returns the annotated frame and its emissions."""
+        """Perceive one frame. Returns an annotated copy and the emissions.
+
+        The input frame is never written to. Every model sees the clean image,
+        and so does anything else holding the same buffer -- training capture
+        included, which used to save the overlay into its training photos.
+
+        ``mirror`` flips only the returned picture, for a selfie-style view.
+        Perception, and every coordinate it emits, stays in the camera's true
+        orientation: ArUco markers do not decode mirrored, and a payload that
+        moved with a display preference would not be evidence.
+        """
         rack_obs: RackObservation | None = None
 
         # Rack first. Canonicalize the *input* frame by the rack's tilt so the
@@ -114,12 +125,10 @@ class PerceptionPipeline:
             frame, _, inverse = RackFrame.canonicalize(frame, rack_obs.rotation_deg)
             rack_obs = rack_obs.rebased(inverse)
             self.rack_locked = rack_obs.found
-            RackFrame.draw(frame, rack_obs)
 
         detection = self.detector.detect(
             frame, wanted, min_area=min_area, multi=self.rack is not None
         )
-        Detector.draw(frame, detection)
         objects = detection.objects
 
         # Rack-frame positions. Without a lock these stay absent and every
@@ -138,10 +147,17 @@ class PerceptionPipeline:
             pose_obs = self.pose.observe(frame)
             hands = self.hands.observe(pose_obs)
             pairs = self.contacts.infer(hands, objects)
-            for hand in hands:
-                cv2.circle(frame, (int(hand.x), int(hand.y)), 9, (255, 190, 0), 2)
 
         h, w = frame.shape[:2]
+
+        # Overlay last, on a copy: nothing above ever saw an annotation.
+        canvas = cv2.flip(frame, 1) if mirror else frame.copy()
+        if rack_obs is not None:
+            RackFrame.draw(canvas, rack_obs)
+        Detector.draw(canvas, detection, mirror=mirror)
+        for hand in hands:
+            x = (w - 1 - hand.x) if mirror else hand.x
+            cv2.circle(canvas, (int(x), int(hand.y)), 9, (255, 190, 0), 2)
         emissions: list[Emission] = [
             ("capture", EventType.FRAME.value, {"frame_id": frame_id, "w": w, "h": h})
         ]
@@ -162,7 +178,7 @@ class PerceptionPipeline:
             emissions.append(("pose", EventType.POSE.value, pose_obs.to_payload(frame_id)))
 
         return Observation(
-            frame=frame,
+            frame=canvas,
             emissions=emissions,
             rack=rack_obs,
             pose=pose_obs,

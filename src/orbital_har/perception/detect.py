@@ -148,6 +148,43 @@ def is_background(name: str) -> bool:
     return n in _BG_ALIASES or _edit_distance(n, BACKGROUND_CLASS) <= 2
 
 
+@dataclass(frozen=True)
+class ClassVerdict:
+    """What the classifier said about one frame, and whether it counts."""
+
+    name: str
+    conf: float
+    margin: float
+    accepted: bool
+    #: Why it was ignored; empty when accepted.
+    why: str
+    #: Every class with its probability, most likely first.
+    ranked: tuple[tuple[str, float], ...]
+
+
+def classify_verdict(names: dict[int, str], probs: list[float]) -> ClassVerdict:
+    """The one rule for accepting a classification.
+
+    Shared by live supervision and the Models page's test stage, so what the
+    operator sees while testing is exactly what a run would conclude.
+    """
+    order = sorted(range(len(probs)), key=lambda i: -probs[i])
+    ranked = tuple((names[i], round(float(probs[i]), 4)) for i in order)
+    name, conf = ranked[0]
+    second = ranked[1][1] if len(ranked) > 1 else 0.0
+    margin = conf - second
+
+    if is_background(name):
+        why = "nothing presented"
+    elif conf < CLS_MIN_CONF:
+        why = f"low confidence {conf:.2f}"
+    elif margin < CLS_MIN_MARGIN:
+        why = f"ambiguous (margin {margin:.2f})"
+    else:
+        why = ""
+    return ClassVerdict(name, conf, margin, not why, why, ranked)
+
+
 @dataclass
 class Candidate:
     """One detection considered this frame, kept or not."""
@@ -228,32 +265,20 @@ class Detector:
 
     def _classify(self, frame: np.ndarray) -> DetectionResult:
         result = self.classifier.predict(frame, verbose=False)[0]
-        probs = result.probs.data.tolist()
-        order = sorted(range(len(probs)), key=lambda i: -probs[i])
-        name = self.classifier.names[order[0]]
-        conf = float(probs[order[0]])
-        second = float(probs[order[1]]) if len(order) > 1 else 0.0
-        margin = conf - second
+        v = classify_verdict(self.classifier.names, result.probs.data.tolist())
 
-        if is_background(name):
-            why = "nothing presented"
-        elif conf < CLS_MIN_CONF:
-            why = f"low confidence {conf:.2f}"
-        elif margin < CLS_MIN_MARGIN:
-            why = f"ambiguous (margin {margin:.2f})"
-        else:
-            why = ""
-
-        out = DetectionResult(note=f"{name}  {conf:.2f}  (margin {margin:.2f})", rejected=bool(why))
-        if why:
-            out.note += f"\nignored: {why}"
+        out = DetectionResult(
+            note=f"{v.name}  {v.conf:.2f}  (margin {v.margin:.2f})", rejected=not v.accepted
+        )
+        if not v.accepted:
+            out.note += f"\nignored: {v.why}"
             return out
 
         h, w = frame.shape[:2]
         out.objects.append(
             {
-                "cls": name,
-                "conf": round(conf, 3),
+                "cls": v.name,
+                "conf": round(v.conf, 3),
                 "bbox": [0.0, 0.0, float(w), float(h)],
                 "track_id": None,
             }
@@ -303,8 +328,13 @@ class Detector:
     # ---------------------------------------------------------------- overlay
 
     @staticmethod
-    def draw(frame: np.ndarray, result: DetectionResult) -> None:
-        """Annotate in place. Rejected detections are shown, not hidden."""
+    def draw(frame: np.ndarray, result: DetectionResult, *, mirror: bool = False) -> None:
+        """Annotate in place. Rejected detections are shown, not hidden.
+
+        With ``mirror`` the frame is already flipped; boxes move with it, while
+        their labels are written normally so they stay readable.
+        """
+        width = frame.shape[1]
         if result.note:
             colour = (0, 170, 255) if result.rejected else (0, 220, 0)
             cv2.rectangle(frame, (6, 6), (frame.shape[1] - 6, frame.shape[0] - 6), colour, 3)
@@ -323,6 +353,8 @@ class Detector:
         for i, cand in enumerate(result.candidates):
             colour = (0, 220, 0) if cand.kept else (110, 110, 110)
             x0, y0, x1, y1 = (int(v) for v in cand.bbox)
+            if mirror:
+                x0, x1 = width - 1 - x1, width - 1 - x0
             cv2.rectangle(frame, (x0, y0), (x1, y1), colour, 3 if cand.kept else 1)
             tag = f"{cand.cls} {cand.conf:.2f} {cand.area_frac * 100:.0f}%"
             if not cand.kept and i == 0:

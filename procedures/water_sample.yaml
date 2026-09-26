@@ -1,0 +1,96 @@
+# WATER-SAMPLE — potable water sampling, as a station crew does it
+#
+# Why this experiment: on the ISS the crew samples the drinking water on a
+# schedule and checks it for microbes and chemistry; BAS will need the same.
+# It is routine, safety-relevant, and exactly where a wrong container or a
+# skipped log entry matters when the ground is not watching. No training
+# needed: every prop is something the stock detector already knows.
+#
+#   prop               stands in for
+#   bottle             the sample container
+#   cup / mug          the sampling cup at the water dispenser
+#   phone              the crew tablet (station crews log procedures on tablets)
+#
+#   1  raise a hand             crew reports ready -- the assistant starts the clock
+#   2  show the container       sample container retrieved from stowage
+#   3  show container AND cup   sample collected: both in hand, together
+#   4  show the tablet          sample logged
+#   5  raise both hands         all-clear: procedure complete
+#
+# Hold each prop up close for about two seconds. The alerts it demonstrates:
+#   * wrong object   (Clean) at step 2 show the tablet: "Wrong object: the crew
+#                    tablet is for step 4. Now: Retrieve the sample container"
+#   * out of order   (Strict) at step 3 show the tablet: logging a sample that
+#                    was never collected
+#   * stall          do nothing at a step for 60 s
+
+procedure:
+  id: water_sample
+  name: Potable water sampling
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: coco-standin
+
+markers: []
+regions: []
+
+objects:
+  - id: sample_container
+    classes: [bottle]
+  - id: sampling_cup
+    classes: [cup]
+  - id: crew_tablet
+    classes: [cell phone]
+
+steps:
+  - id: s1
+    name: Report ready
+    voice: "Water sampling. Step one. Raise a hand when you are ready to begin."
+    preconditions: []
+    requires:
+      - gesture: hand_raised
+        hold_frames: 6
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s2
+    name: Retrieve the sample container
+    voice: "Step two. Retrieve the sample container and show it to the camera."
+    preconditions: [s1]
+    requires:
+      - detect: bottle
+        hold_frames: 6
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s3
+    name: Collect the sample
+    voice: "Step three. Collect the sample. Hold the container and the sampling cup together."
+    preconditions: [s2]
+    requires:
+      - detect: bottle
+        hold_frames: 6
+      - detect: cup
+        hold_frames: 6
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s4
+    name: Log the sample on the crew tablet
+    voice: "Step four. Log the sample. Show the crew tablet, screen towards the camera."
+    preconditions: [s3]
+    requires:
+      - detect: cell phone
+        hold_frames: 6
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s5
+    name: Confirm completion
+    voice: "Step five. Raise both hands to confirm the procedure is complete."
+    preconditions: [s4]
+    requires:
+      - gesture: both_hands_raised
+        hold_frames: 6
+    timeout_s: 60
+    on_timeout: stall

@@ -37,13 +37,15 @@ class Camera:
         self.failure: str | None = None
 
     def open(self) -> bool:
+        self.release()  # a retry must not leak the handle of the failed attempt
         cap = cv2.VideoCapture(self.index, cv2.CAP_DSHOW)
         if not cap.isOpened():
             cap = cv2.VideoCapture(self.index)
         self._cap = cap
         self.opened = cap.isOpened()
-        if not self.opened:
-            self.failure = f"camera {self.index} unavailable"
+        # A reopen that works clears the old reason; a stale one would report
+        # a fault that no longer exists.
+        self.failure = None if self.opened else f"camera {self.index} unavailable"
         return self.opened
 
     def read(self) -> np.ndarray | None:

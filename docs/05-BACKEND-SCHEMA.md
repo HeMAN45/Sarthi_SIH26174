@@ -167,8 +167,8 @@ CREATE TABLE alerts (
     session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     bus_seq         INTEGER NOT NULL,
     kind            TEXT NOT NULL CHECK (kind IN
-                      ('skip','out_of_order','stall','unverified',
-                       'free_float','degraded')),
+                      ('skip','out_of_order','wrong_object','wrong_hand','stall',
+                       'unverified','free_float','degraded')),   -- migrations 002, 003
     severity        TEXT NOT NULL CHECK (severity IN ('low','medium','high')),
     step_id         TEXT,
     expected_step_id TEXT,
@@ -358,6 +358,12 @@ hand-written SQL is clearer and reviewable in a hackathon setting.
 
 Forward-only. Breaking a migration during development is resolved by deleting `orbital.db`
 and replaying sessions; session folders are the durable artifact, not the database.
+
+| File | What it does |
+|---|---|
+| `001_initial.sql` | The schema above |
+| `002_wrong_object_alert.sql` | Adds `wrong_object` to the alert kinds. SQLite cannot alter a CHECK, so `alerts` is rebuilt and every row copied |
+| `003_wrong_hand_alert.sql` | Adds `wrong_hand` the same way |
 
 ---
 

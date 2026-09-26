@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>SARTHI — Experiment Catalogue</title>
+<style>
+@page { size: A4; margin: 15mm 14mm 16mm; }
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI", system-ui, sans-serif; color: #1c1f23; font-size: 9.8pt; line-height: 1.42; margin: 0; }
+h1 { font-size: 30pt; margin: 0 0 4mm; letter-spacing: -0.02em; }
+h2 { font-size: 16pt; margin: 0 0 3mm; padding-bottom: 2mm; border-bottom: 2px solid #f39a2e; break-after: avoid; }
+h3 { font-size: 12.5pt; margin: 0; }
+p { margin: 0 0 2.5mm; }
+.mono { font-family: Consolas, "Cascadia Mono", monospace; font-size: 8.8pt; }
+.dim { color: #6b7178; }
+.k { font-weight: 700; text-transform: uppercase; font-size: 7.8pt; letter-spacing: .08em; color: #b86a12; margin-right: 2mm; }
+.cover { height: 262mm; display: flex; flex-direction: column; justify-content: space-between; break-after: page; }
+.brand { display: flex; align-items: center; gap: 4mm; font-weight: 800; letter-spacing: .3em; font-size: 12pt; }
+.brand .mark { width: 12mm; height: 12mm; border: 2.5px solid #f39a2e; border-radius: 50%; position: relative; }
+.brand .mark::after { content: ""; position: absolute; inset: 3.2mm; border: 2px solid #f39a2e; border-radius: 50%; }
+.cover .lead { font-size: 13pt; color: #3b4148; max-width: 150mm; }
+.cover .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
+.cover .stat { border: 1px solid #d8dbe0; border-radius: 3mm; padding: 4mm; }
+.cover .stat b { display: block; font-size: 20pt; color: #b86a12; }
+.cover .foot { color: #6b7178; font-size: 9pt; border-top: 1px solid #d8dbe0; padding-top: 3mm; }
+.page { break-before: page; }
+table { width: 100%; border-collapse: collapse; margin: 1mm 0 3mm; }
+th { text-align: left; font-size: 7.8pt; text-transform: uppercase; letter-spacing: .06em; color: #6b7178; border-bottom: 1.5px solid #1c1f23; padding: 1.6mm 2mm; }
+td { border-bottom: 1px solid #e4e6ea; padding: 1.25mm 2mm; vertical-align: top; }
+td.n { width: 7mm; font-weight: 700; color: #b86a12; }
+.steps td:nth-child(4) { width: 52mm; }
+.exp { border: 1px solid #d8dbe0; border-radius: 3mm; padding: 3.2mm 4mm 1.5mm; margin: 0 0 3.5mm; break-inside: avoid; page-break-inside: avoid; }
+.exp-head { display: flex; gap: 4mm; align-items: flex-start; margin-bottom: 2mm; }
+.num { font-size: 18pt; font-weight: 800; color: #f39a2e; line-height: 1; min-width: 11mm; }
+.grow { flex: 1; }
+.meta { margin-top: 1.2mm; display: flex; flex-wrap: wrap; gap: 1.8mm; align-items: center; font-size: 8.6pt; }
+.domain { color: #6b7178; font-weight: 600; }
+.pill { border-radius: 5mm; padding: .4mm 2.4mm; font-size: 7.8pt; font-weight: 700; border: 1px solid; }
+.pill.ok { color: #1d7a3e; border-color: #9fd3b0; background: #edf8f1; }
+.pill.info { color: #1f5fa8; border-color: #a9c6ea; background: #eef4fc; }
+.pill.warn { color: #9a5b00; border-color: #efc98a; background: #fff6e6; }
+.pill.bad { color: #a3262a; border-color: #eaaeae; background: #fdeeee; }
+.dot { display: inline-block; width: 2.4mm; height: 2.4mm; border-radius: 50%; margin-right: 1.6mm; }
+.dot.ok { background: #2e9b55; } .dot.warn { background: #e29a1e; }
+.box { border-left: 3px solid #f39a2e; background: #fff8ef; padding: 2.4mm 4mm; margin: 2mm 0 3mm; border-radius: 0 2mm 2mm 0; break-inside: avoid; }
+ol, ul { margin: 0 0 3mm; padding-left: 6mm; }
+li { margin-bottom: 1mm; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+</style></head><body>
+
+<div class="cover">
+  <div>
+    <div class="brand"><span class="mark"></span>SARTHI</div>
+    <div style="margin-top: 60mm">
+      <div class="k" style="font-size:10pt">Team Hashira · SIH26174 · ISRO</div>
+      <h1>Experiment catalogue<br>& capability guide</h1>
+      <p class="lead">Twenty-one experiments SARTHI can supervise — fourteen for a space station, seven on Earth — with the props, every step, what the system checks, and the exact builder settings. Plus what SARTHI can and cannot see, how to run a demo, and how to teach it new objects.</p>
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>21</b>experiments</div>
+    <div class="stat"><b>4</b>built in, ready to run</div>
+    <div class="stat"><b>13</b>body actions, left / right</div>
+    <div class="stat"><b>0</b>network calls — fully offline</div>
+  </div>
+  <div class="foot">SARTHI — on-board procedure supervision for Bharatiya Antariksh Station experiments. For the team: read §1–§3 before building an experiment. Version of 27 September 2026.</div>
+</div>
+
+<h2>1 · What SARTHI can check</h2>
+<p>An experiment is a list of steps. Each step asks for evidence the camera can see — an object, what a hand does with it, a body action — and SARTHI judges the steps in order, speaks the next one, alerts on mistakes and writes a timestamped, tamper-evident log.</p>
+<table><thead><tr><th style="width:38mm">Capability</th><th>What it means</th><th style="width:26mm">Status</th></tr></thead><tbody><tr><td><b>See objects</b></td><td>80 everyday objects out of the box (bottle, cup, bowl, phone, laptop, backpack, fruit, plant, scissors…) plus any object you train</td><td><span class='dot ok'></span>Reliable</td></tr><tr><td><b>Several objects at once</b></td><td>Every object the experiment names, in the same frame</td><td><span class='dot ok'></span>Reliable</td></tr><tr><td><b>“Show it”</b></td><td>The object held up close to the camera (fills 6 % of the frame or more)</td><td><span class='dot ok'></span>Reliable</td></tr><tr><td><b>“Hold it” — which hand</b></td><td>A hand on the object; a step can require the left or the right hand</td><td><span class='dot ok'></span>Reliable</td></tr><tr><td><b>“Move it”</b></td><td>The object carried a quarter of the way across the picture while held</td><td><span class='dot ok'></span>Reliable</td></tr><tr><td><b>“Put it in its place”</b></td><td>The object standing in a marked spot (the saffron box) for 2 s — procedure files only</td><td><span class='dot ok'></span>Reliable</td></tr><tr><td><b>“Pour it”</b></td><td>The object held and tipped over. Needs the object trained with pouring photos: the stock detector loses a tipped bottle</td><td><span class='dot warn'></span>With care</td></tr><tr><td><b>Body postures</b></td><td>Raise a hand, hand to face, hand on head, reach out, both hands up, hands together, arms crossed, arms out, hands on hips (standing)</td><td><span class='dot ok'></span>Reliable</td></tr><tr><td><b>Movements</b></td><td>Wave, lift, lower, clap — read from the last 2–2.5 s; do them slowly (a laptop reads 3–4 frames a second)</td><td><span class='dot warn'></span>With care</td></tr><tr><td><b>Movement while holding</b></td><td>Hold it + a movement, e.g. lift the bottle with the right hand</td><td><span class='dot ok'></span>Reliable</td></tr><tr><td><b>Any orientation</b></td><td>Postures are measured against the body&#x27;s own axis — upright, lying or upside down read the same</td><td><span class='dot ok'></span>Reliable</td></tr><tr><td><b>Alerts (spoken)</b></td><td>Wrong object, wrong hand, stall, cannot verify — always. Skip and out of sequence — in Strict mode</td><td><span class='dot ok'></span>Reliable</td></tr><tr><td><b>Record</b></td><td>Timestamped, tamper-evident step log; local video; RTSP stream to an IP</td><td><span class='dot ok'></span>Reliable</td></tr></tbody></table>
+<div class="box"><span class="k">Honest limits</span><ul style="margin-top:1.5mm"><li>Fingers: thumbs-up, pinch, counting fingers — the pose model has wrists, not fingers.</li><li>Fine manipulation: twisting a cap one way or the other, cutting, writing.</li><li>Whether liquid actually flowed — only that the container was tipped while held.</li><li>Small or flat objects are unreliable with the stock model: books, spoons, pens, pills.</li><li>Fast movements on a laptop: a quick wave or clap falls between frames.</li><li>Two objects in one builder step (a procedure file can do it).</li><li>Telling two similar objects apart (two medicine bottles) — train each one.</li></ul></div>
+
+<h2 class="page">2 · Body actions</h2>
+<p>Read from the skeleton (17 body points) and measured against the body's own axis — shoulders to head, hips to shoulders — never the image, so a crew member upside down raises a hand exactly as one standing does. One-hand actions can be required for the <b>left</b> or the <b>right</b> hand; the other hand raises a spoken <b>wrong hand</b> alert.</p>
+<table><thead><tr><th style="width:38mm">Action</th><th style="width:34mm">Kind</th><th>How to do it for the camera</th></tr></thead><tbody><tr><td><b>Raise a hand</b></td><td>One hand</td><td>Forearm pointing up</td></tr><tr><td><b>Hand to face</b></td><td>One hand</td><td>Wrist at the mouth or nose — drinking, eating</td></tr><tr><td><b>Hand on head</b></td><td>One hand</td><td>Elbow up, hand beside the head</td></tr><tr><td><b>Reach out</b></td><td>One hand</td><td>Arm straight, lifted away from the body</td></tr><tr><td><b>Wave</b></td><td>One hand · movement</td><td>Raised hand going side to side, at least twice</td></tr><tr><td><b>Lift</b></td><td>One hand · movement</td><td>Hand rising half a shoulder-width or more</td></tr><tr><td><b>Lower</b></td><td>One hand · movement</td><td>Hand coming down the same distance</td></tr><tr><td><b>Raise both hands</b></td><td>Both</td><td>Both forearms up</td></tr><tr><td><b>Hands together</b></td><td>Both</td><td>Wrists close together</td></tr><tr><td><b>Cross your arms</b></td><td>Both</td><td>Each hand past the middle of the chest</td></tr><tr><td><b>Arms out</b></td><td>Both</td><td>A T: arms straight at shoulder height (stand back from the camera)</td></tr><tr><td><b>Hands on hips</b></td><td>Both</td><td>Standing, knees in view</td></tr><tr><td><b>Clap</b></td><td>Both · movement</td><td>Hands closing again and again — slowly</td></tr></tbody></table>
+<div class="two">
+  <div class="box"><span class="k">Doing it well</span><ul style="margin-top:1.5mm"><li>Sit 60–80 cm from the laptop; chest, <b>both elbows</b> and the table in view.</li><li>Hold each action about two seconds; do one thing at a time and wait for the voice.</li><li>Movements slowly and widely: a laptop reads 3–4 frames a second.</li><li>Hold objects so they fill a good part of the frame for “show it”.</li></ul></div>
+  <div class="box"><span class="k">Alerts it speaks</span><ul style="margin-top:1.5mm"><li><b>Wrong object</b> — picking up what a later step needs.</li><li><b>Wrong hand</b> — the other hand doing a left/right step.</li><li><b>Out of sequence / skipped</b> — in Strict mode.</li><li><b>No progress</b> — a step left undone for 60–120 s.</li><li><b>Cannot verify</b> — evidence too weak to trust.</li></ul></div>
+</div>
+
+<h2 class="page">3 · Running and building an experiment</h2>
+<div class="two">
+<div>
+<p><span class="k">Start</span> In the Clippy folder: <span class="mono">uv run python scripts/web_demo.py</span>, then open <span class="mono">http://localhost:8000</span>.</p>
+<p><span class="k">Run a built-in one</span></p>
+<ol><li><b>Procedures</b> tab → <i>Built-in</i> → the experiment's card → <b>Load</b>.</li>
+<li><b>Mission</b> tab → choose <b>Clean</b> (normal) or <b>Strict</b> (also flags steps done early) → <b>New run</b>.</li>
+<li>Follow the voice. An alert covers the top of the video: <b>Acknowledge</b> (or Esc).</li>
+<li>At the end a debrief appears; <b>End run</b> releases the camera.</li>
+<li><b>Archive</b> tab → the run → steps, alerts, video, <b>Verify chain</b>.</li></ol>
+</div>
+<div>
+<p><span class="k">Build your own</span></p>
+<ol><li><b>Procedures</b> → <i>Build an experiment</i> → type a name.</li>
+<li>Add steps from <b>Objects</b> (80 stock + your trained ones, listed first) or <b>Body actions</b>.</li>
+<li>In each step choose what is done with the object — <b>Show / Hold / Pour / Move</b> — and <b>which hand</b> — Either / Left / Right.</li>
+<li>Leave the wording empty to use the default shown in grey, or type your own.</li>
+<li><b>Save</b> (it appears under <i>Your experiments</i>, even after a restart) or <b>Save & run</b>.</li></ol>
+<p class="dim">“Put it back in its place” and “two objects in one step” need a procedure file — copy <span class="mono">procedures/seed_germination.yaml</span> and edit it.</p>
+</div></div>
+
+<h2>4 · Teaching SARTHI a new object</h2>
+<ol>
+<li><b>Models</b> tab → type the object's name → <b>+</b>. Keep the <b>background</b> class.</li>
+<li>Capture from the live laptop camera in the room you will run in: <b>40–60 photos</b> per object or state (5–6 bursts of ×10, moving it between bursts) — different angles, distances, both hands, standing and held. <b>Background: 60–80</b> — the empty table, empty hands, a finger, your face, and every <i>other</i> prop on its own.</li>
+<li><b>Train → Objects</b> → <b>Find the object in my photos</b> → check the boxes in <b>Boxes</b> (click a wrong one to leave it out) → 15 epochs → <b>Train object detector</b> (≈15–20 min on a laptop).</li>
+<li><b>Test model</b> live → <b>Deploy</b>. Your object joins the 80 stock ones and stays after a restart; deleting its class hides it again.</li>
+</ol>
+<div class="box"><span class="k">Photos or video?</span> A video upload is cut into 40 still frames, so it is a faster way to collect varied photos — record one slow 15–20 s clip per class. Its held-out accuracy looks better than it is (neighbouring frames are near-copies); judge it with <b>Test model</b>. For a pouring step, include photos of the object tipped at 30–90°.</div>
+
+<h2 class="page">5 · Space station experiments</h2>
+
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">01</div>
+    <div class="grow">
+      <h3>Seed germination check</h3>
+      <div class="meta"><span class="domain">Plant biology</span>
+        <span class="pill ok">Built-in — ready to run</span>
+        <span class="pill ok">Reliable</span> <span class='mono'>procedures/seed_germination.yaml</span></div>
+    </div>
+  </div>
+  <p class="why">ISRO&#x27;s Axiom-4 experiment sprouted moong and methi seeds on the ISS. Growing food is how a BAS crew will one day feed itself; the daily check is simple and easy to get wrong.</p>
+  <p class="props"><span class="k">Props</span> <b>Bowl of sprouted moong (or a small potted plant)</b> <span class='dim'>(seed tray)</span> · <b>Water bottle</b> <span class='dim'>(water dispenser)</span> · <b>Phone</b> <span class='dim'>(crew tablet)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Take the tray out of the growth chamber</td><td>A hand on the tray</td><td class='mono'>bowl / potted plant · Hold it</td></tr><tr><td class='n'>2</td><td>Water the seeds</td><td>Bottle in hand, tray in view</td><td class='mono'>bottle · Hold it (+ tray visible)</td></tr><tr><td class='n'>3</td><td>Photograph the growth</td><td>Phone in hand</td><td class='mono'>cell phone · Hold it</td></tr><tr><td class='n'>4</td><td>Return the tray to the growth chamber</td><td>Tray standing in the saffron GROWTH_CHAMBER box for 2 s</td><td class='mono'>place — procedure file</td></tr><tr><td class='n'>5</td><td>Report complete</td><td>Both hands raised</td><td class='mono'>Raise both hands</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object (pick up the phone at step 2) · Out of order in Strict (return the tray before the photo) · Stall</p>
+  <p class='notes'><span class='k'>Notes</span> Check in the camera preview that the bowl/plant gets a box. The recommended main demo.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">02</div>
+    <div class="grow">
+      <h3>Potable water sampling</h3>
+      <div class="meta"><span class="domain">Environmental health</span>
+        <span class="pill ok">Built-in — ready to run</span>
+        <span class="pill ok">Reliable</span> <span class='mono'>procedures/water_sample.yaml</span></div>
+    </div>
+  </div>
+  <p class="why">Station crews sample the drinking water for microbes and log the result; a wrong container or a skipped log entry matters when the ground is not watching.</p>
+  <p class="props"><span class="k">Props</span> <b>Water bottle</b> <span class='dim'>(sample container)</span> · <b>Cup or mug</b> <span class='dim'>(sampling cup)</span> · <b>Phone</b> <span class='dim'>(crew tablet)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Report ready</td><td>A raised hand</td><td class='mono'>Raise a hand</td></tr><tr><td class='n'>2</td><td>Retrieve the sample container</td><td>Bottle held up to the camera</td><td class='mono'>bottle · Show it</td></tr><tr><td class='n'>3</td><td>Collect the sample</td><td>Bottle AND cup held up together</td><td class='mono'>two objects in one step — procedure file</td></tr><tr><td class='n'>4</td><td>Log the sample on the tablet</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr><tr><td class='n'>5</td><td>Confirm completion</td><td>Both hands raised</td><td class='mono'>Raise both hands</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object (show the tablet at step 2) · Out of order in Strict (log before collecting)</p>
+  <p class='notes'><span class='k'>Notes</span> Shows two objects at once. Good backup demo.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">03</div>
+    <div class="grow">
+      <h3>Crew fitness and hydration check</h3>
+      <div class="meta"><span class="domain">Human physiology</span>
+        <span class="pill ok">Built-in — ready to run</span>
+        <span class="pill warn">Works with care</span> <span class='mono'>procedures/crew_fitness.yaml</span></div>
+    </div>
+  </div>
+  <p class="why">In microgravity muscle and bone waste away, so crews exercise every day and drink on a schedule. The most human-activity demo: every step is read from the body.</p>
+  <p class="props"><span class="k">Props</span> <b>Water bottle</b> <span class='dim'>(crew water ration)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Raise your RIGHT hand to report ready</td><td>Right hand raised</td><td class='mono'>Raise a hand · Right hand</td></tr><tr><td class='n'>2</td><td>Cross your arms to stretch</td><td>Arms crossed</td><td class='mono'>Cross your arms</td></tr><tr><td class='n'>3</td><td>Wave your LEFT hand, slowly</td><td>Left hand waving</td><td class='mono'>Wave · Left hand</td></tr><tr><td class='n'>4</td><td>Lift the bottle with your RIGHT hand</td><td>Right hand on the bottle AND lifting</td><td class='mono'>bottle · Hold it + Lift · Right hand</td></tr><tr><td class='n'>5</td><td>Drink the water</td><td>Hand at the face, bottle in view</td><td class='mono'>bottle + Hand to face</td></tr><tr><td class='n'>6</td><td>Raise both hands to finish</td><td>Both hands raised</td><td class='mono'>Raise both hands</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong hand (raise the LEFT hand at step 1) · Stall</p>
+  <p class='notes'><span class='k'>Notes</span> Keep both elbows in frame; wave slowly and widely (a laptop reads 3–4 frames a second).</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">04</div>
+    <div class="grow">
+      <h3>Crew meal and hydration log</h3>
+      <div class="meta"><span class="domain">Nutrition</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill warn">Works with care</span> </div>
+    </div>
+  </div>
+  <p class="why">Keeping crew intake on schedule is a daily medical requirement; Gaganyaan&#x27;s food system is ISRO&#x27;s own.</p>
+  <p class="props"><span class="k">Props</span> <b>Banana or apple</b> <span class='dim'>(meal pack)</span> · <b>Water bottle</b> <span class='dim'>(drink)</span> · <b>Phone</b> <span class='dim'>(crew tablet)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Take the meal pack</td><td>Hand on the fruit</td><td class='mono'>banana · Hold it</td></tr><tr><td class='n'>2</td><td>Eat</td><td>Hand at the face holding the fruit</td><td class='mono'>banana · Hold it + Hand to face</td></tr><tr><td class='n'>3</td><td>Drink</td><td>Hand at the face holding the bottle</td><td class='mono'>bottle · Hold it + Hand to face</td></tr><tr><td class='n'>4</td><td>Log the intake</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr><tr><td class='n'>5</td><td>Put the leftover away</td><td>Hand lowering the fruit</td><td class='mono'>banana · Hold it + Lower</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object (bottle before the meal) · Out of order in Strict</p>
+  <p class='notes'><span class='k'>Notes</span> The same gesture means two steps depending on the object in hand.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">05</div>
+    <div class="grow">
+      <h3>Biological sample to cold storage</h3>
+      <div class="meta"><span class="domain">Life sciences</span>
+        <span class="pill warn">Needs a procedure file (has a “put back in its place” step)</span>
+        <span class="pill ok">Reliable</span> </div>
+    </div>
+  </div>
+  <p class="why">Blood, saliva and cell samples must reach the freezer quickly and in the right order, or the science is lost.</p>
+  <p class="props"><span class="k">Props</span> <b>Water bottle</b> <span class='dim'>(sample tube)</span> · <b>Cup</b> <span class='dim'>(transfer holder)</span> · <b>Phone</b> <span class='dim'>(crew tablet)</span> · <b>A marked spot on the table</b> <span class='dim'>(freezer)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Report ready</td><td>A raised hand</td><td class='mono'>Raise a hand</td></tr><tr><td class='n'>2</td><td>Take the sample tube</td><td>Hand on the bottle</td><td class='mono'>bottle · Hold it</td></tr><tr><td class='n'>3</td><td>Place it in the transfer holder</td><td>Hand lowering the bottle (or bottle + cup together)</td><td class='mono'>bottle · Hold it + Lower</td></tr><tr><td class='n'>4</td><td>Put it in the freezer</td><td>Bottle in the freezer spot for 2 s</td><td class='mono'>place — procedure file</td></tr><tr><td class='n'>5</td><td>Log it</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Out of order in Strict (logging before storing) · Wrong object</p>
+  <p class='notes'><span class='k'>Notes</span> Needs a small procedure file for the freezer spot.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">06</div>
+    <div class="grow">
+      <h3>Fluid transfer in microgravity</h3>
+      <div class="meta"><span class="domain">Physical sciences</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill bad">Needs training for “pour”</span> </div>
+    </div>
+  </div>
+  <p class="why">Moving liquids in microgravity is a real payload task; the crew must pour, record and stow in order.</p>
+  <p class="props"><span class="k">Props</span> <b>Water bottle</b> <span class='dim'>(source container)</span> · <b>Cup</b> <span class='dim'>(measuring beaker)</span> · <b>Phone</b> <span class='dim'>(crew tablet)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Pick up the source container</td><td>Hand on the bottle</td><td class='mono'>bottle · Hold it</td></tr><tr><td class='n'>2</td><td>Pour into the beaker</td><td>Bottle in hand AND tipped over</td><td class='mono'>bottle · Pour it</td></tr><tr><td class='n'>3</td><td>Record the volume</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr><tr><td class='n'>4</td><td>Stow the beaker</td><td>Cup carried across the picture</td><td class='mono'>cup · Move it</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object · Out of order in Strict</p>
+  <p class='notes'><span class='k'>Notes</span> The stock detector loses a tipped bottle (1 of 10 at 45°). Train your bottle with pouring photos, or use “bottle and cup together”.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">07</div>
+    <div class="grow">
+      <h3>Emergency response drill</h3>
+      <div class="meta"><span class="domain">Crew safety</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill ok">Reliable</span> </div>
+    </div>
+  </div>
+  <p class="why">ISS crews rehearse alarm drills regularly; on BAS nobody on the ground talks them through it.</p>
+  <p class="props"><span class="k">Props</span> <b>Backpack</b> <span class='dim'>(emergency kit)</span> · <b>Phone</b> <span class='dim'>(comms tablet)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Acknowledge the alarm</td><td>Right hand raised</td><td class='mono'>Raise a hand · Right hand</td></tr><tr><td class='n'>2</td><td>Grab the emergency kit</td><td>Hand on the backpack</td><td class='mono'>backpack · Hold it</td></tr><tr><td class='n'>3</td><td>Carry it to the hatch</td><td>Backpack carried across the picture</td><td class='mono'>backpack · Move it</td></tr><tr><td class='n'>4</td><td>Report on the comms tablet</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr><tr><td class='n'>5</td><td>Crew accounted for</td><td>Both hands raised</td><td class='mono'>Raise both hands</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong hand · Wrong object · Stall (a frozen crew member)</p>
+  <p class='notes'><span class='k'>Notes</span> Backpacks and phones are detected very well.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">08</div>
+    <div class="grow">
+      <h3>Tool accountability</h3>
+      <div class="meta"><span class="domain">Payload maintenance</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill warn">Works with care</span> </div>
+    </div>
+  </div>
+  <p class="why">In space a loose tool floats away and becomes a hazard: every tool taken out must come back.</p>
+  <p class="props"><span class="k">Props</span> <b>Scissors</b> <span class='dim'>(the tool)</span> · <b>Phone</b> <span class='dim'>(crew tablet)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Take the tool from the kit</td><td>Hand on the scissors</td><td class='mono'>scissors · Hold it</td></tr><tr><td class='n'>2</td><td>Do the repair</td><td>Both hands together, tool in hand</td><td class='mono'>scissors · Hold it + Hands together</td></tr><tr><td class='n'>3</td><td>Return the tool</td><td>Hand lowering the scissors</td><td class='mono'>scissors · Hold it + Lower</td></tr><tr><td class='n'>4</td><td>Confirm on the tablet</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object · Out of order in Strict</p>
+  <p class='notes'><span class='k'>Notes</span> Scissors are only moderately well detected — test in the preview first.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">09</div>
+    <div class="grow">
+      <h3>Science data downlink</h3>
+      <div class="meta"><span class="domain">Payload operations</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill ok">Reliable</span> </div>
+    </div>
+  </div>
+  <p class="why">Experiment data goes to the ground in a scheduled window; a missed step means lost science.</p>
+  <p class="props"><span class="k">Props</span> <b>Laptop</b> <span class='dim'>(payload computer)</span> · <b>Phone</b> <span class='dim'>(data drive)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Open the payload computer</td><td>Hand on the laptop</td><td class='mono'>laptop · Hold it</td></tr><tr><td class='n'>2</td><td>Connect the data drive</td><td>Hand on the phone</td><td class='mono'>cell phone · Hold it</td></tr><tr><td class='n'>3</td><td>Start the transfer</td><td>A raised hand</td><td class='mono'>Raise a hand</td></tr><tr><td class='n'>4</td><td>Stow the drive</td><td>Phone carried across the picture</td><td class='mono'>cell phone · Move it</td></tr><tr><td class='n'>5</td><td>Downlink complete</td><td>Both hands raised</td><td class='mono'>Raise both hands</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object · Wrong hand</p>
+  
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">10</div>
+    <div class="grow">
+      <h3>Cabin stowage audit</h3>
+      <div class="meta"><span class="domain">Logistics</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill ok">Reliable</span> </div>
+    </div>
+  </div>
+  <p class="why">Before undocking everything must be stowed and counted; loose items are dangerous.</p>
+  <p class="props"><span class="k">Props</span> <b>Bottle and cup</b> <span class='dim'>(loose items)</span> · <b>Backpack</b> <span class='dim'>(stowage bag)</span> · <b>Phone</b> <span class='dim'>(crew tablet)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Stow the bottle</td><td>Bottle carried across</td><td class='mono'>bottle · Move it</td></tr><tr><td class='n'>2</td><td>Stow the cup</td><td>Cup carried across</td><td class='mono'>cup · Move it</td></tr><tr><td class='n'>3</td><td>Close the bag</td><td>Hand on the backpack</td><td class='mono'>backpack · Hold it</td></tr><tr><td class='n'>4</td><td>Report</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object (packing in the wrong order) — the whole point</p>
+  
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">11</div>
+    <div class="grow">
+      <h3>Food sample decay study</h3>
+      <div class="meta"><span class="domain">Food science</span>
+        <span class="pill warn">Needs a procedure file (has a “put back in its place” step)</span>
+        <span class="pill ok">Reliable</span> </div>
+    </div>
+  </div>
+  <p class="why">How long food stays safe matters for long missions such as BAS and the Moon.</p>
+  <p class="props"><span class="k">Props</span> <b>Banana or apple</b> <span class='dim'>(food sample)</span> · <b>Bowl</b> <span class='dim'>(sample dish)</span> · <b>Phone</b> <span class='dim'>(crew tablet)</span> · <b>A marked spot</b> <span class='dim'>(incubator)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Take the sample out</td><td>Hand on the fruit</td><td class='mono'>apple · Hold it</td></tr><tr><td class='n'>2</td><td>Put it in the sample dish</td><td>Hand lowering the fruit</td><td class='mono'>apple · Hold it + Lower</td></tr><tr><td class='n'>3</td><td>Photograph it</td><td>Phone in hand</td><td class='mono'>cell phone · Hold it</td></tr><tr><td class='n'>4</td><td>Return it to the incubator</td><td>Fruit in the incubator spot for 2 s</td><td class='mono'>place — procedure file</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Out of order in Strict · Stall</p>
+  <p class='notes'><span class='k'>Notes</span> A close cousin of the germination check.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">12</div>
+    <div class="grow">
+      <h3>Waste management</h3>
+      <div class="meta"><span class="domain">Life support</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill ok">Reliable</span> </div>
+    </div>
+  </div>
+  <p class="why">On a station every piece of trash must be bagged, or it floats into the air system.</p>
+  <p class="props"><span class="k">Props</span> <b>Bottle and cup</b> <span class='dim'>(waste)</span> · <b>Backpack</b> <span class='dim'>(waste bag)</span> · <b>Phone</b> <span class='dim'>(crew tablet)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Pick up the empty bottle</td><td>Hand on the bottle</td><td class='mono'>bottle · Hold it</td></tr><tr><td class='n'>2</td><td>Bag it</td><td>Bottle carried across</td><td class='mono'>bottle · Move it</td></tr><tr><td class='n'>3</td><td>Bag the used cup</td><td>Cup carried across</td><td class='mono'>cup · Move it</td></tr><tr><td class='n'>4</td><td>Seal the bag</td><td>Both hands together on the bag</td><td class='mono'>backpack · Hold it + Hands together</td></tr><tr><td class='n'>5</td><td>Log it</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object · Out of order in Strict</p>
+  
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">13</div>
+    <div class="grow">
+      <h3>The PS sample experiment — nested sample retrieval</h3>
+      <div class="meta"><span class="domain">SIH26174 brief</span>
+        <span class="pill bad">Needs props + training</span>
+        <span class="pill bad">Needs props + training</span> <span class='mono'>procedures/proc_a.yaml</span></div>
+    </div>
+  </div>
+  <p class="why">The problem statement&#x27;s own example: a box containing a red and a yellow box. This is what the judges&#x27; brief describes.</p>
+  <p class="props"><span class="k">Props</span> <b>Shoebox</b> <span class='dim'>(outer container)</span> · <b>Red and yellow small boxes</b> <span class='dim'>(sample boxes)</span> · <b>Vial + tweezers + clip</b> <span class='dim'>(sample and tools)</span> · <b>ArUco rack board</b> <span class='dim'>(payload rack)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Open the outer container</td><td>outer_box_open seen</td><td class='mono'>procedure file</td></tr><tr><td class='n'>2</td><td>Remove the red box, place it on marker R</td><td>Hand on the red box, then near marker R</td><td class='mono'>procedure file</td></tr><tr><td class='n'>3</td><td>Remove the yellow box, place it on marker Y</td><td>Hand on the yellow box, then near marker Y</td><td class='mono'>procedure file</td></tr><tr><td class='n'>4</td><td>Open the red box</td><td>red_box_open seen</td><td class='mono'>procedure file</td></tr><tr><td class='n'>5</td><td>Transfer the vial with tweezers</td><td>Tweezers on the vial, vial near the yellow box</td><td class='mono'>procedure file</td></tr><tr><td class='n'>6</td><td>Close the red box and secure it</td><td>red_box_closed, secured</td><td class='mono'>procedure file</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Skip · Out of order · Stall · Free-float (a tethered item adrift)</p>
+  <p class='notes'><span class='k'>Notes</span> The procedure is built and tested; it needs the prop kit and a model trained on the boxes&#x27; open/closed states. The finale plan.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">14</div>
+    <div class="grow">
+      <h3>Drink water (your original experiment)</h3>
+      <div class="meta"><span class="domain">Human activity</span>
+        <span class="pill ok">Built-in — ready to run</span>
+        <span class="pill warn">Works with care</span> <span class='mono'>procedures/drink_water_body.yaml · drink_water.yaml</span></div>
+    </div>
+  </div>
+  <p class="why">Pick up the bottle → open the cap → drink → close the cap → put it back. Ships in two forms.</p>
+  <p class="props"><span class="k">Props</span> <b>Water bottle</b> <span class='dim'>(the bottle)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Pick up the bottle</td><td>Hand on the bottle</td><td class='mono'>bottle · Hold it</td></tr><tr><td class='n'>2</td><td>Open the cap</td><td>Body version: both hands together · Trained version: bottle_open seen</td><td class='mono'>Hands together (body) / trained class</td></tr><tr><td class='n'>3</td><td>Drink</td><td>Hand at the face, bottle in view</td><td class='mono'>bottle + Hand to face</td></tr><tr><td class='n'>4</td><td>Close the cap</td><td>Body version: hands together · Trained: bottle_closed seen</td><td class='mono'>Hands together (body) / trained class</td></tr><tr><td class='n'>5</td><td>Put it back</td><td>Bottle in the HOME box for 2 s</td><td class='mono'>place — procedure file</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Out of order in Strict (put back before closing) · Stall</p>
+  <p class='notes'><span class='k'>Notes</span> Telling open from closed needs the cap state trained — hard at webcam distance. The body version needs no training.</p>
+</section>
+
+<h2 class="page">6 · On Earth — the same engine, a different file</h2>
+<p>SARTHI is not specific to one experiment: a new procedure is a new file, with no code change. These show where the same system earns its keep on the ground.</p>
+
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">15</div>
+    <div class="grow">
+      <h3>Medicine routine for elderly people</h3>
+      <div class="meta"><span class="domain">Healthcare</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill ok">Reliable</span> </div>
+    </div>
+  </div>
+  <p class="why">Missed or double doses are a major cause of hospital visits, and family cannot watch all day.</p>
+  <p class="props"><span class="k">Props</span> <b>Bottle</b> <span class='dim'>(medicine bottle)</span> · <b>Cup</b> <span class='dim'>(glass of water)</span> · <b>Phone</b> <span class='dim'>(confirmation)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Take the medicine bottle</td><td>Hand on the bottle</td><td class='mono'>bottle · Hold it</td></tr><tr><td class='n'>2</td><td>Take the pill</td><td>Hand at the face</td><td class='mono'>Hand to face</td></tr><tr><td class='n'>3</td><td>Drink water</td><td>Hand at the face holding the cup</td><td class='mono'>cup · Hold it + Hand to face</td></tr><tr><td class='n'>4</td><td>Put the bottle back</td><td>Hand lowering the bottle</td><td class='mono'>bottle · Hold it + Lower</td></tr><tr><td class='n'>5</td><td>Confirm on the phone</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Out of order in Strict · Stall (a missed dose)</p>
+  <p class='notes'><span class='k'>Notes</span> Telling one medicine bottle from another needs each one trained.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">16</div>
+    <div class="grow">
+      <h3>Physiotherapy exercises at home</h3>
+      <div class="meta"><span class="domain">Rehabilitation</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill ok">Reliable</span> </div>
+    </div>
+  </div>
+  <p class="why">Patients skip or reorder prescribed exercises and the doctor never knows. No props at all.</p>
+  <p class="props"><span class="k">Props</span> <b>None</b> <span class='dim'>(just the body)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Raise your right arm</td><td>Right hand raised</td><td class='mono'>Raise a hand · Right hand</td></tr><tr><td class='n'>2</td><td>Raise your left arm</td><td>Left hand raised</td><td class='mono'>Raise a hand · Left hand</td></tr><tr><td class='n'>3</td><td>Cross your arms</td><td>Arms crossed</td><td class='mono'>Cross your arms</td></tr><tr><td class='n'>4</td><td>Reach forward with your right arm</td><td>Right arm straight out</td><td class='mono'>Reach out · Right hand</td></tr><tr><td class='n'>5</td><td>Wave to finish</td><td>A hand waving</td><td class='mono'>Wave</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong hand (the core of it) · Stall</p>
+  <p class='notes'><span class='k'>Notes</span> Pure human activity recognition — the most reliable demo.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">17</div>
+    <div class="grow">
+      <h3>School chemistry lab procedure</h3>
+      <div class="meta"><span class="domain">Education &amp; safety</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill bad">Needs training for “pour”</span> </div>
+    </div>
+  </div>
+  <p class="why">Students mix steps up, and in a lab the order can be a safety issue.</p>
+  <p class="props"><span class="k">Props</span> <b>Bottle</b> <span class='dim'>(reagent bottle)</span> · <b>Cup</b> <span class='dim'>(beaker)</span> · <b>Phone</b> <span class='dim'>(lab notebook)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Take the reagent</td><td>Hand on the bottle</td><td class='mono'>bottle · Hold it</td></tr><tr><td class='n'>2</td><td>Pour into the beaker</td><td>Bottle in hand and tipped</td><td class='mono'>bottle · Pour it</td></tr><tr><td class='n'>3</td><td>Record the reading</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr><tr><td class='n'>4</td><td>Return the reagent</td><td>Hand lowering the bottle</td><td class='mono'>bottle · Hold it + Lower</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Out of order in Strict (recording before pouring) · Wrong object</p>
+  <p class='notes'><span class='k'>Notes</span> Train the reagent bottle with pouring photos for a reliable pour.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">18</div>
+    <div class="grow">
+      <h3>Airport security screening</h3>
+      <div class="meta"><span class="domain">Travel</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill ok">Reliable</span> </div>
+    </div>
+  </div>
+  <p class="why">The procedure everyone knows and everyone gets wrong — instantly relatable.</p>
+  <p class="props"><span class="k">Props</span> <b>Backpack</b> <span class='dim'>(cabin bag)</span> · <b>Laptop</b> <span class='dim'>(laptop)</span> · <b>Phone</b> <span class='dim'>(phone)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Put the bag down</td><td>Hand lowering the backpack</td><td class='mono'>backpack · Hold it + Lower</td></tr><tr><td class='n'>2</td><td>Take out the laptop</td><td>Hand on the laptop, lifting</td><td class='mono'>laptop · Hold it + Lift</td></tr><tr><td class='n'>3</td><td>Put the phone in the tray</td><td>Phone carried across</td><td class='mono'>cell phone · Move it</td></tr><tr><td class='n'>4</td><td>Hands up for the scan</td><td>Both hands raised</td><td class='mono'>Raise both hands</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object (phone before laptop) · Out of order in Strict</p>
+  <p class='notes'><span class='k'>Notes</span> Every prop is detected very well.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">19</div>
+    <div class="grow">
+      <h3>Warehouse order packing</h3>
+      <div class="meta"><span class="domain">Logistics / e-commerce</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill ok">Reliable</span> </div>
+    </div>
+  </div>
+  <p class="why">Wrong items in a parcel cost e-commerce companies heavily.</p>
+  <p class="props"><span class="k">Props</span> <b>Bottle, cup, phone</b> <span class='dim'>(order items)</span> · <b>Backpack</b> <span class='dim'>(parcel)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Pack item 1</td><td>Bottle carried across</td><td class='mono'>bottle · Move it</td></tr><tr><td class='n'>2</td><td>Pack item 2</td><td>Cup carried across</td><td class='mono'>cup · Move it</td></tr><tr><td class='n'>3</td><td>Pack item 3</td><td>Phone carried across</td><td class='mono'>cell phone · Move it</td></tr><tr><td class='n'>4</td><td>Seal the parcel</td><td>Both hands together on the bag</td><td class='mono'>backpack · Hold it + Hands together</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object — the whole point</p>
+  
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">20</div>
+    <div class="grow">
+      <h3>Baby feed preparation</h3>
+      <div class="meta"><span class="domain">Childcare &amp; hygiene</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill warn">Works with care</span> </div>
+    </div>
+  </div>
+  <p class="why">Hygiene order matters, and a tired parent at 3 a.m. skips steps.</p>
+  <p class="props"><span class="k">Props</span> <b>Bottle</b> <span class='dim'>(feeding bottle)</span> · <b>Cup</b> <span class='dim'>(water)</span> · <b>Bowl</b> <span class='dim'>(steriliser)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Take the bottle from the steriliser</td><td>Hand on the bottle</td><td class='mono'>bottle · Hold it</td></tr><tr><td class='n'>2</td><td>Pour in the water</td><td>Cup in hand and tipped</td><td class='mono'>cup · Pour it</td></tr><tr><td class='n'>3</td><td>Mix</td><td>Both hands together on the bottle</td><td class='mono'>bottle · Hold it + Hands together</td></tr><tr><td class='n'>4</td><td>Test on the wrist / taste</td><td>Bottle at the face</td><td class='mono'>bottle · Hold it + Hand to face</td></tr><tr><td class='n'>5</td><td>Put the steriliser away</td><td>Bowl carried across</td><td class='mono'>bowl · Move it</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Out of order in Strict · Wrong object</p>
+  <p class='notes'><span class='k'>Notes</span> “Pour” is more reliable with the cup trained on pouring photos.</p>
+</section>
+<section class="exp">
+  <div class="exp-head">
+    <div class="num">21</div>
+    <div class="grow">
+      <h3>Factory assembly checklist</h3>
+      <div class="meta"><span class="domain">Manufacturing</span>
+        <span class="pill info">Build it in the builder (≈2 min)</span>
+        <span class="pill warn">Works with care</span> </div>
+    </div>
+  </div>
+  <p class="why">Factories and pharma plants must prove every step of a standard procedure was done, in order — the biggest real-world market for SARTHI.</p>
+  <p class="props"><span class="k">Props</span> <b>Scissors</b> <span class='dim'>(tool)</span> · <b>Cup</b> <span class='dim'>(part)</span> · <b>Phone</b> <span class='dim'>(QC scanner)</span></p>
+  <table class="steps"><thead><tr><th>#</th><th>Operator does</th><th>SARTHI checks</th><th>Builder settings</th></tr></thead>
+  <tbody><tr><td class='n'>1</td><td>Take the tool</td><td>Hand on the scissors</td><td class='mono'>scissors · Hold it</td></tr><tr><td class='n'>2</td><td>Fit the part</td><td>Both hands together on the part</td><td class='mono'>cup · Hold it + Hands together</td></tr><tr><td class='n'>3</td><td>Return the tool</td><td>Hand lowering the scissors</td><td class='mono'>scissors · Hold it + Lower</td></tr><tr><td class='n'>4</td><td>Scan for quality check</td><td>Phone held up</td><td class='mono'>cell phone · Show it</td></tr></tbody></table>
+  <p class="alerts"><span class="k">Alerts to show</span> Wrong object · Out of order in Strict — the tamper-evident log is the compliance proof</p>
+  <p class='notes'><span class='k'>Notes</span> Scissors are only moderately well detected.</p>
+</section>
+
+<h2 class="page">7 · Demo plan (internal hackathon)</h2>
+<ol>
+<li><b>The story (30 s).</b> On BAS, ground support cannot watch every experiment live. SARTHI runs on board, offline, and supervises the crew step by step.</li>
+<li><b>Main demo — Seed germination check (Clean).</b> The full five steps with voice prompts; show the debrief.</li>
+<li><b>A mistake — wrong object.</b> New run; at step 2 pick up the phone: “Wrong object: the crew tablet is for step 3. Now: Water the seeds.”</li>
+<li><b>Human activity — Crew fitness check.</b> Raise the LEFT hand at step 1: “Wrong hand: use your right hand.” Then wave, lift the bottle with the right hand, drink.</li>
+<li><b>Out of sequence — Strict mode.</b> Germination again: return the tray before photographing it.</li>
+<li><b>The record.</b> Archive → verify the chain: a few kilobytes of verified log go to the ground, not a video stream.</li>
+<li><b>Close.</b> “A new experiment is a new file” — show this catalogue: space, healthcare, factories.</li>
+</ol>
+<div class="box"><span class="k">Before the demo</span> Rehearse twice in the same room and light. Check in the preview that every prop gets a box. Keep one good run's video on disk. Backup demo: Potable water sampling.</div>
+</body></html>

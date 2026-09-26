@@ -1,0 +1,105 @@
+# CREW-FITNESS — the daily fitness and hydration check
+#
+# Why this experiment: in microgravity muscle and bone waste away, so a station
+# crew exercises every day and drinks on a schedule. It is the most human of
+# the demos: every step is read from the body itself -- which hand, what
+# movement -- and one step is a movement made while holding an object.
+#
+#   prop     stands in for
+#   bottle   the crew water ration
+#
+#   1  raise your RIGHT hand          ready -- wrong hand is alerted
+#   2  cross your arms                warm-up stretch
+#   3  wave your LEFT hand, slowly    signal to the camera
+#   4  lift the bottle, RIGHT hand    a movement while holding an object
+#   5  drink                          hand to face, holding the bottle
+#   6  raise both hands               check complete
+#
+# Sit so the camera sees you from the waist up with both elbows in frame. Wave
+# slowly and widely: a laptop reads about three frames a second.
+# To show the alert: at step 1 raise your LEFT hand -- "Wrong hand: use your
+# right hand. Now: Raise your right hand to report ready".
+
+procedure:
+  id: crew_fitness
+  name: Crew fitness and hydration check
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: coco-standin
+
+markers: []
+regions: []
+
+objects:
+  - id: water_bottle
+    classes: [bottle]
+
+steps:
+  - id: s1
+    name: Raise your right hand to report ready
+    voice: "Fitness check. Step one. Raise your right hand to report ready."
+    preconditions: []
+    requires:
+      - gesture: hand_raised
+        side: right
+        hold_frames: 6
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s2
+    name: Cross your arms to stretch
+    voice: "Step two. Cross your arms across your chest."
+    preconditions: [s1]
+    requires:
+      - gesture: arms_crossed
+        hold_frames: 6
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s3
+    name: Wave your left hand
+    voice: "Step three. Wave your left hand, slowly, to the camera."
+    preconditions: [s2]
+    requires:
+      - gesture: waving
+        side: left
+        hold_frames: 2
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s4
+    name: Lift the water bottle with your right hand
+    voice: "Step four. Pick up the water bottle with your right hand and lift it."
+    preconditions: [s3]
+    requires:
+      - contact: [hand, water_bottle]
+        side: right
+        hold_frames: 3
+      - gesture: lifting
+        side: right
+        hold_frames: 2
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s5
+    name: Drink the water
+    voice: "Step five. Drink the water."
+    preconditions: [s4]
+    requires:
+      - gesture: hand_to_face
+        hold_frames: 6
+    any_of:
+      - detect: bottle
+        hold_frames: 1
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s6
+    name: Raise both hands to finish
+    voice: "Step six. Raise both hands. The fitness check is complete."
+    preconditions: [s5]
+    requires:
+      - gesture: both_hands_raised
+        hold_frames: 6
+    timeout_s: 60
+    on_timeout: stall

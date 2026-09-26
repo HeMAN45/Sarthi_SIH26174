@@ -1,39 +1,48 @@
 # DRINK-WATER — pick up the bottle, open, drink, close, put it back
 #
-# Five steps judged by an on-device scene classifier you train in the Models
-# tab. Each class is one visibly different state of the scene; the step order
-# does the rest.
+# The camera is taught only what it cannot measure: whether the cap is on.
+# Train two states of YOUR bottle in the Models tab, Objects mode ("Training
+# for: Drink water from a bottle" creates them):
 #
-# Train these classes (Models -> "Set up for a procedure" creates them):
+#   bottle_closed   your bottle with the cap ON  -- in your hand and standing
+#   bottle_open     your bottle with the cap OFF -- the open neck visible
+#   background      the scene WITHOUT the bottle: empty hands, fingers, face
 #
-#   bottle_home     bottle standing in its marked spot, cap on, hands off it
-#   holding_closed  bottle in your hand, cap ON
-#   holding_open    bottle in your hand, cap OFF
-#   drinking        bottle at your mouth, tilted
-#   background      EVERYTHING ELSE: empty spot, empty hands, fingers, face,
-#                   other objects, the bottle lying somewhere that is not home
+# Everything else is measured, not learned. The stock detector finds "a
+# bottle", body tracking finds your hands and when one is at your face, and the
+# home spot is a region of the picture:
 #
-# One class serves two steps. "holding_closed" means "picked up" at step 1 and
-# "cap closed again" at step 4: the engine only judges the step the crew is on
-# (CLAUDE.md invariant #11), so seeing it at step 1 cannot also complete step 4.
+#   pick up        a hand on the bottle
+#   open the cap   your trained model sees it open
+#   drink          a hand at your face, the bottle in view
+#   close the cap  your trained model sees it closed again
+#   put it back    the bottle standing in the home spot for two seconds
 #
-# Mark the home spot (a coaster, a square of paper) so "put it back" is a
-# visibly distinct scene rather than "a bottle somewhere on the table".
-# Run in Strict mode to have drinking before opening flagged out of sequence.
+# Home is the saffron box drawn on the camera view: stand the bottle inside it
+# before you start, or move the rect below (fractions of the frame in the
+# camera's true orientation: x0, y0, x1, y1). Run in Strict mode to have "put
+# it back" before "close the cap" flagged out of sequence.
+#
+# No training at all? drink_water_body.yaml runs the same five steps from the
+# stock detector and body tracking alone, reading open and close from both
+# hands meeting at the bottle rather than from the cap itself.
 
 procedure:
   id: drink_water
   name: Drink water from a bottle
-  version: 1
+  version: 2
   rack_markers: DICT_4X4_50
-  vocabulary: scene-states
+  vocabulary: custom
 
 markers: []
-regions: []
+regions:
+  - id: home
+    rect: [0.55, 0.45, 0.98, 0.98]
 
 objects:
+  # Whichever sees it: the stock "bottle" or one of your trained states.
   - id: bottle
-    classes: [bottle_home, holding_closed, holding_open, drinking]
+    classes: [bottle, bottle_closed, bottle_open]
 
 steps:
   - id: s1
@@ -41,8 +50,8 @@ steps:
     voice: "Step one. Pick up the bottle."
     preconditions: []
     requires:
-      - detect: holding_closed
-        hold_frames: 8
+      - contact: [hand, bottle]
+        hold_frames: 4
     timeout_s: 90
     on_timeout: stall
 
@@ -51,8 +60,8 @@ steps:
     voice: "Step two. Open the cap."
     preconditions: [s1]
     requires:
-      - detect: holding_open
-        hold_frames: 8
+      - detect: bottle_open
+        hold_frames: 6
     timeout_s: 90
     on_timeout: stall
 
@@ -61,9 +70,15 @@ steps:
     voice: "Step three. Take a drink."
     preconditions: [s2]
     requires:
-      # About a second at webcam rates: a sip, not a bottle passing the face.
-      - detect: drinking
-        hold_frames: 15
+      # About a second: a sip, not a hand passing the face.
+      - gesture: hand_to_face
+        hold_frames: 12
+    any_of:
+      # At the mouth the bottle is half hidden; one clear sighting will do.
+      - detect: bottle_open
+        hold_frames: 1
+      - detect: bottle
+        hold_frames: 1
     timeout_s: 90
     on_timeout: stall
 
@@ -72,8 +87,8 @@ steps:
     voice: "Step four. Close the cap."
     preconditions: [s3]
     requires:
-      - detect: holding_closed
-        hold_frames: 8
+      - detect: bottle_closed
+        hold_frames: 6
     timeout_s: 90
     on_timeout: stall
 
@@ -82,7 +97,8 @@ steps:
     voice: "Step five. Put the bottle back in its place."
     preconditions: [s4]
     requires:
-      - detect: bottle_home
-        hold_frames: 12
+      - dwell: bottle
+        region: home
+        seconds: 2
     timeout_s: 90
     on_timeout: stall

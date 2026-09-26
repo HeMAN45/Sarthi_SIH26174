@@ -1,0 +1,105 @@
+# SEED-GERMINATION — the plant-biology check a station crew runs
+#
+# Why this experiment: on Axiom-4 ISRO's experiment had Shubhanshu Shukla
+# sprout moong and methi seeds aboard the ISS -- growing food is how a crew on
+# BAS will one day feed itself. The daily check is simple and easy to get
+# wrong: take the tray out, water it, photograph the growth, put it back.
+# Water before the photo, never forget the photo, never leave the tray out.
+#
+#   prop                       stands in for
+#   bowl of sprouted moong     the seed tray -- or a small potted plant with leaves
+#   bottle                     the water dispenser
+#   phone                      the crew tablet
+#
+#   1  take the tray out     a hand on the pot
+#   2  water the seeds       the bottle in hand, the pot in view
+#   3  photograph growth     the tablet in hand
+#   4  return the tray       the pot standing in the growth chamber for 2 s
+#   5  report complete       both hands raised
+#
+# The growth chamber is the saffron box on the camera view: stand the pot
+# inside it before you start. Mistakes it catches:
+#   * wrong object   at step 2 pick up the phone instead of the bottle
+#   * out of order   (Strict) put the tray back before photographing it
+#   * stall          leave a step undone for 60 s -- the tray left out
+
+procedure:
+  id: seed_germination
+  name: Seed germination check
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: coco-standin
+
+markers: []
+regions:
+  - id: growth_chamber
+    rect: [0.55, 0.45, 0.98, 0.98]
+
+objects:
+  # A bowl of sprouts or a potted plant; the stock detector sometimes calls a
+  # pot a vase. Any of them will do.
+  - id: seed_tray
+    classes: [bowl, potted plant, vase]
+  - id: water
+    classes: [bottle]
+  - id: crew_tablet
+    classes: [cell phone]
+
+steps:
+  - id: s1
+    name: Take the seed tray out
+    voice: "Seed germination check. Step one. Take the seed tray out of the growth chamber."
+    preconditions: []
+    requires:
+      - contact: [hand, seed_tray]
+        hold_frames: 4
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s2
+    name: Water the seeds
+    voice: "Step two. Water the seeds."
+    preconditions: [s1]
+    requires:
+      - contact: [hand, water]
+        hold_frames: 6
+    any_of:
+      - detect: bowl
+        hold_frames: 1
+      - detect: potted plant
+        hold_frames: 1
+      - detect: vase
+        hold_frames: 1
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s3
+    name: Photograph the growth
+    voice: "Step three. Photograph the growth with the crew tablet."
+    preconditions: [s2]
+    requires:
+      - contact: [hand, crew_tablet]
+        hold_frames: 6
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s4
+    name: Return the tray to the growth chamber
+    voice: "Step four. Return the tray to the growth chamber."
+    preconditions: [s3]
+    requires:
+      - dwell: seed_tray
+        region: growth_chamber
+        seconds: 2
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s5
+    name: Report complete
+    voice: "Step five. Raise both hands to report the check complete."
+    preconditions: [s4]
+    requires:
+      - gesture: both_hands_raised
+        hold_frames: 6
+    timeout_s: 60
+    on_timeout: stall

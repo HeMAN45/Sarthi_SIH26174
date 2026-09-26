@@ -1,0 +1,93 @@
+# DRINK-BODY — drink water, judged from the body (no training needed)
+#
+# The same five steps as DRINK-WATER, but read from what the body does rather
+# than from a trained scene classifier: the stock detector finds the bottle,
+# pose finds the hands, and the gestures are measured in the body's own frame.
+#
+#   pick up        a hand in contact with the bottle
+#   open the cap   both hands together at the bottle
+#   drink          a hand at the face, bottle in view
+#   close the cap  both hands together again
+#   put it back    the bottle standing in the home spot for two seconds
+#
+# The home spot is drawn on the camera view as a saffron box. Stand the bottle
+# in it before you start, or move the rect below to where your bottle lives
+# (fractions of the frame, camera's true orientation: x0, y0, x1, y1).
+#
+# Open and close look alike to the body, so the step order tells them apart:
+# the engine only judges the step the operator is on (invariant #11).
+
+procedure:
+  id: drink_water_body
+  name: Drink water — body tracking, no training
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: coco-standin
+
+markers: []
+regions:
+  - id: home
+    rect: [0.55, 0.45, 0.98, 0.98]
+
+objects:
+  - id: bottle
+    classes: [bottle]
+
+steps:
+  - id: s1
+    name: Pick up the bottle
+    voice: "Step one. Pick up the bottle."
+    preconditions: []
+    requires:
+      - contact: [hand, bottle]
+        hold_frames: 4
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s2
+    name: Open the bottle cap
+    voice: "Step two. Open the cap."
+    preconditions: [s1]
+    requires:
+      - gesture: hands_together
+        hold_frames: 10
+      - detect: bottle
+        hold_frames: 3
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s3
+    name: Drink the water
+    voice: "Step three. Take a drink."
+    preconditions: [s2]
+    requires:
+      - gesture: hand_to_face
+        hold_frames: 12
+      # At the mouth the bottle is half hidden; one clear frame is enough.
+      - detect: bottle
+        hold_frames: 1
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s4
+    name: Close the bottle cap
+    voice: "Step four. Close the cap."
+    preconditions: [s3]
+    requires:
+      - gesture: hands_together
+        hold_frames: 10
+      - detect: bottle
+        hold_frames: 3
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s5
+    name: Put the bottle back in its place
+    voice: "Step five. Put the bottle back in its place."
+    preconditions: [s4]
+    requires:
+      - dwell: bottle
+        region: home
+        seconds: 2
+    timeout_s: 90
+    on_timeout: stall

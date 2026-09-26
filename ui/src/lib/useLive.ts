@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { LiveState } from "./api";
 
+/** ~9 s of history at the server's 10 Hz push rate. */
+const TRACE_LEN = 90;
+
+export interface Traces {
+  /** Confidence of the active step, reset whenever the active step changes. */
+  confidence: number[];
+  /** Perception loop rate. */
+  fps: number[];
+}
+
 /** Subscribes to the engine's live state, and speaks only when the device cannot.
  *
  *  The device owns the voice: an alert that depends on somebody having a browser
@@ -11,11 +21,13 @@ import type { LiveState } from "./api";
 export function useLive() {
   const [state, setState] = useState<LiveState | null>(null);
   const [connected, setConnected] = useState(false);
+  const [traces, setTraces] = useState<Traces>({ confidence: [], fps: [] });
   const spokenStep = useRef<string | null>(null);
   const spokenAlert = useRef<number>(0);
+  const traceKey = useRef<string | null>(null);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
-  mutedRef.current = muted;
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -31,6 +43,21 @@ export function useLive() {
       } catch { /* voice is advisory; never break the UI for it */ }
     };
 
+    const record = (s: LiveState) => {
+      const active = s.steps.find((x) => x.state === "active") ?? null;
+      const key = active && s.phase === "live" ? `${s.session?.id}:${active.id}` : null;
+      setTraces((prev) => {
+        const confidence = key === traceKey.current && key
+          ? [...prev.confidence, active!.confidence].slice(-TRACE_LEN)
+          : key ? [active!.confidence] : [];
+        traceKey.current = key;
+        const fps = s.camera?.state === "live"
+          ? [...prev.fps, s.fps].slice(-TRACE_LEN)
+          : [];
+        return { confidence, fps };
+      });
+    };
+
     const connect = () => {
       const proto = location.protocol === "https:" ? "wss" : "ws";
       ws = new WebSocket(`${proto}://${location.host}/ws`);
@@ -43,6 +70,7 @@ export function useLive() {
         let s: LiveState;
         try { s = JSON.parse(ev.data); } catch { return; }
         setState(s);
+        record(s);
 
         // The device already spoke. Saying it twice is worse than not at all.
         if (s.voice?.available) {
@@ -50,6 +78,8 @@ export function useLive() {
           spokenAlert.current = s.alert?.seq ?? 0;
           return;
         }
+        // Nothing is announced between runs.
+        if (s.phase !== "live") return;
 
         if (s.next && s.next.id !== spokenStep.current) {
           spokenStep.current = s.next.id;
@@ -75,19 +105,23 @@ export function useLive() {
   /** Reset speech memory so a new run re-announces step one. */
   const resetSpeech = () => { spokenStep.current = null; spokenAlert.current = 0; };
 
-  return { state, connected, muted, setMuted, resetSpeech };
+  return { state, connected, muted, setMuted, resetSpeech, traces };
 }
 
-/** Shows an alert banner for a few seconds after each new alert. */
-export function useAlertBanner(seq: number | undefined, message: string | undefined) {
-  const [visible, setVisible] = useState(false);
-  const last = useRef(0);
+/** An alert stays up until acknowledged (UI brief §3); only low-severity
+ *  advisories clear themselves. A newer alert always replaces an older one. */
+export function useAlert(alert: LiveState["alert"] | undefined) {
+  const [acked, setAcked] = useState(0);
+  const [expired, setExpired] = useState(0);
+  const seq = alert?.seq ?? 0;
+  const low = alert?.severity === "low";
+
   useEffect(() => {
-    if (!seq || seq === last.current) return;
-    last.current = seq;
-    setVisible(true);
-    const t = setTimeout(() => setVisible(false), 5000);
+    if (!seq || !low) return;
+    const t = window.setTimeout(() => setExpired(seq), 6000);
     return () => clearTimeout(t);
-  }, [seq, message]);
-  return visible;
+  }, [seq, low]);
+
+  const visible = !!alert && seq > acked && !(low && expired === seq);
+  return { visible, acknowledge: () => setAcked(seq) };
 }

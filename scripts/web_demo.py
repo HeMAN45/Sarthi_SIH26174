@@ -51,7 +51,21 @@ def _load_detector(args: argparse.Namespace) -> Detector:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="SARTHI live dashboard")
     ap.add_argument("--procedure", default="demo_live")
+    ap.add_argument(
+        "--procedures", default="procedures", help="procedure library directory (for the UI)"
+    )
     ap.add_argument("--camera", type=int, default=0)
+    ap.add_argument(
+        "--no-mirror",
+        action="store_true",
+        help="show the camera unmirrored (mirroring is on by default: a webcam facing you "
+        "otherwise moves the wrong way). Use this when the camera looks at a rack.",
+    )
+    ap.add_argument(
+        "--autostart",
+        action="store_true",
+        help="start a run immediately; by default the camera stays off until New run",
+    )
     ap.add_argument("--model", default="yolo11n.pt")
     ap.add_argument(
         "--world",
@@ -85,9 +99,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
+    library = Path(args.procedures)
     proc_path = Path(args.procedure)
     if not proc_path.exists():
-        proc_path = Path("procedures") / f"{args.procedure}.yaml"
+        proc_path = library / f"{args.procedure}.yaml"
     procedure = Procedure.load(proc_path)
 
     data_root = Path(args.data)
@@ -100,6 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         rtsp_url=args.rtsp,
         record=not args.no_record,
         record_height=args.record_height,
+        mirror=not args.no_mirror,
     )
 
     # Any session still marked 'running' belongs to a previous hard kill.
@@ -109,7 +125,9 @@ def main(argv: list[str] | None = None) -> int:
     if recovered:
         print(f"[web] recovered {recovered} interrupted session(s) from a previous run")
 
-    session.start()
+    # The camera belongs to a run: it powers on at Start run and is released
+    # at End run, so an idle console is not quietly watching the room.
+    session.start(autostart=args.autostart)
 
     # uvicorn.run() hands back no server object, so /api/shutdown would have
     # nothing to ask. Build the Server ourselves and keep the handle.
@@ -121,9 +139,12 @@ def main(argv: list[str] | None = None) -> int:
         session=session,
         trainer=TrainManager(data_root / "custom"),
         server=server,
+        procedures=library,
     )
 
     print(f"[web] open  http://localhost:{args.port}")
+    if not args.autostart:
+        print("[web] camera is off until you press New run")
     if args.host == "0.0.0.0":
         print(f"[web] live feed on the network at http://<this-machine-ip>:{args.port}/video")
     server.run()

@@ -24,6 +24,17 @@ fires on frame one: "close both boxes" is trivially true before anyone has
 opened them. Ambient state is not proof that the operator did something. The
 cost is that jumping more than the lookahead ahead goes undetected, which is
 the safer failure -- we stay silent rather than inventing a verdict.
+
+*Handling is not resting state.* What the lookahead cannot see, a hand can:
+picking up an object that only a later step uses is the operator starting an
+out-of-sequence step, and that is alerted straight away (``WRONG_OBJECT``). It
+is advisory -- no step changes state, because putting the phone down again is
+the right recovery -- and it stays quiet for objects the lookahead will judge,
+so one mistake still raises one alert.
+
+*The other hand is a mistake too.* A step may ask for the left or the right
+hand; doing it with the other one raises ``WRONG_HAND`` -- advisory, like the
+wrong object, and only for what started during the step.
 """
 
 from __future__ import annotations
@@ -43,7 +54,13 @@ from orbital_har.core.types import (
     Severity,
     StepState,
 )
-from orbital_har.reasoning.predicates import EvalContext, PredicateResult, describe, evaluate
+from orbital_har.reasoning.predicates import (
+    EvalContext,
+    PredicateResult,
+    contact_class,
+    describe,
+    evaluate,
+)
 from orbital_har.reasoning.schema import Procedure, StepDef
 from orbital_har.reasoning.window import FrameSnapshot, SnapshotAssembler, Window
 
@@ -54,6 +71,7 @@ _CONSUMED = {
     EventType.RACK.value,
     EventType.HAND.value,
     EventType.POSE.value,
+    EventType.GESTURE.value,
 }
 
 
@@ -79,6 +97,20 @@ class EngineConfig:
     #: for many frames, and repeating the same warning is how crews learn to
     #: ignore warnings (PRD NFR-04).
     free_float_cooldown_s: float = 8.0
+    #: Alert when the operator handles an object that only a later step uses.
+    wrong_object_alerts: bool = True
+    #: Consecutive frames the wrong object must be handled before the alert.
+    wrong_object_hold_frames: int = 6
+    #: One alert per step and object within this long.
+    wrong_object_cooldown_s: float = 10.0
+    #: An object already in view this soon after the step began is part of the
+    #: scene -- the bottle standing at home when the run starts -- not something
+    #: the operator picked up. Covers a camera settling its exposure too.
+    wrong_object_grace_s: float = 2.0
+    #: Alert when a step asks for one hand and the other one is doing it.
+    wrong_hand_alerts: bool = True
+    wrong_hand_hold_frames: int = 6
+    wrong_hand_cooldown_s: float = 10.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +173,15 @@ class Engine:
         self._by_id = {rt.step.id: rt for rt in self.runtimes}
         #: object id -> time of its last free-float advisory.
         self._free_float_last: dict[str, float] = {}
+        #: The detector classes each step is about, in step order.
+        self._step_classes = [procedure.step_classes(rt.step) for rt in self.runtimes]
+        #: In a scene procedure everything in view is reported, so only a hand
+        #: on an object means it is being handled.
+        self._scene = procedure.is_scene
+        #: (step id, object) -> time of the last wrong-object alert.
+        self._wrong_last: dict[tuple[str, str], float] = {}
+        #: step id -> time of the last wrong-hand alert.
+        self._hand_last: dict[str, float] = {}
 
     # ------------------------------------------------------------- accessors
 
@@ -294,8 +335,163 @@ class Engine:
 
         out += self._check_timeouts(t)
         out += self._check_free_float(t)
+        out += self._check_wrong_object(t)
+        out += self._check_wrong_hand(t)
         out += self._ensure_active(t)
         return out
+
+    def _check_wrong_hand(self, t: float) -> list[Event]:
+        """Alert when the step asks for one hand and the other one is doing it."""
+        cfg = self.config
+        if not cfg.wrong_hand_alerts:
+            return []
+        now = next((rt for rt in self.runtimes if rt.state == StepState.ACTIVE), None)
+        if now is None or now.activated_t is None:
+            return []
+        frames = self.window.last(cfg.wrong_hand_hold_frames)
+        if len(frames) < cfg.wrong_hand_hold_frames:
+            return []
+
+        for p in (*now.step.requires, *now.step.any_of):
+            if p.kind == "gesture" and p.side in ("left", "right"):
+
+                def doing(f: FrameSnapshot, side: str, p=p) -> bool:
+                    return f.gesture(p.gesture, side, p.min_conf) is not None
+            elif p.kind == "contact" and p.side in ("left", "right") and p.a in ("hand", "glove"):
+                classes = self.procedure.classes_for(p.b) or {p.b}
+
+                def doing(f: FrameSnapshot, side: str, classes=classes) -> bool:
+                    return any(
+                        c.side == side
+                        and c.a in ("hand", "glove")
+                        and contact_class(f, c) in classes
+                        for c in f.contacts
+                    )
+            else:
+                continue
+            other = "right" if p.side == "left" else "left"
+            if not all(doing(f, other) for f in frames) or doing(frames[-1], p.side):
+                continue
+            # Still holding up the hand the last step asked for is not a mistake.
+            if self._since(lambda f, other=other: doing(f, other)) <= now.activated_t:
+                continue
+            last = self._hand_last.get(now.step.id)
+            if last is not None and t - last < cfg.wrong_hand_cooldown_s:
+                return []
+            self._hand_last[now.step.id] = t
+            return [
+                self._emit_alert(
+                    AlertKind.WRONG_HAND,
+                    Severity.MEDIUM,
+                    t,
+                    step_id=now.step.id,
+                    message=f"Wrong hand: use your {p.side} hand. Now: {now.step.name}",
+                )
+            ]
+        return []
+
+    def _since(self, holds) -> float:
+        """When ``holds(frame)`` began being true without a break; -inf if before the window."""
+        start = -math.inf
+        for f in reversed(self.window.last(len(self.window))):
+            if not holds(f):
+                return start
+            start = f.t
+        return -math.inf
+
+    def _handled(self, snap: FrameSnapshot) -> set[str]:
+        """Classes the operator is handling in one frame.
+
+        A hand on it always counts. In a presentation procedure, perception
+        reports only what is held up close, so being seen is being shown.
+        """
+        held = {
+            cls
+            for c in snap.contacts
+            if c.a in ("hand", "glove") and (cls := contact_class(snap, c)) is not None
+        }
+        if not self._scene:
+            held |= {o.cls for o in snap.objects}
+        return held
+
+    def _appeared_at(self, cls: str) -> float:
+        """When ``cls`` began being handled without a break; -inf if before the window."""
+        frames = self.window.last(len(self.window))
+        start = -math.inf
+        for f in reversed(frames):
+            if cls not in self._handled(f):
+                return start
+            start = f.t
+        return -math.inf
+
+    def _check_wrong_object(self, t: float) -> list[Event]:
+        """Alert when the operator picks up what only a later step needs."""
+        cfg = self.config
+        if not cfg.wrong_object_alerts:
+            return []
+        frontier = self._frontier()
+        if frontier >= len(self.runtimes):
+            return []
+
+        # Objects of earlier steps are fair game (the bottle is still in hand
+        # after "pick up the bottle"), and so are the ones the lookahead will
+        # judge itself. Only an object nothing up to there uses is wrong.
+        horizon = frontier + cfg.completion_lookahead
+        allowed: set[str] = set()
+        later: dict[str, int] = {}
+        for rt, classes in zip(self.runtimes, self._step_classes, strict=True):
+            if rt.ordinal <= horizon or rt.state == StepState.ACTIVE:
+                allowed |= classes
+            else:
+                for c in classes:
+                    later.setdefault(c, rt.ordinal)
+        wrong = {c: o for c, o in later.items() if c not in allowed}
+        if not wrong:
+            return []
+
+        frames = self.window.last(cfg.wrong_object_hold_frames)
+        if len(frames) < cfg.wrong_object_hold_frames:
+            return []
+        held = [self._handled(f) for f in frames]
+        suspects = set(wrong).intersection(*held)
+        if not suspects:
+            return []
+
+        now = next(
+            (rt for rt in self.runtimes if rt.state == StepState.ACTIVE), self.runtimes[frontier]
+        )
+        # The right object in the other hand is not a mix-up we can call.
+        if self._step_classes[now.ordinal] & held[-1]:
+            return []
+
+        # Only what *appeared* during this step was picked up. Something in
+        # view since the step began is the resting scene.
+        began = now.activated_t if now.activated_t is not None else (self.started_t or t)
+        suspects = {c for c in suspects if self._appeared_at(c) > began + cfg.wrong_object_grace_s}
+        if not suspects:
+            return []
+
+        cls = min(suspects, key=lambda c: (wrong[c], c))
+        obj = self.procedure.object_for_class(cls) or cls
+        key = (now.step.id, obj)
+        last = self._wrong_last.get(key)
+        if last is not None and t - last < cfg.wrong_object_cooldown_s:
+            return []
+        self._wrong_last[key] = t
+        target = self.runtimes[wrong[cls]]
+        return [
+            self._emit_alert(
+                AlertKind.WRONG_OBJECT,
+                Severity.HIGH,
+                t,
+                step_id=target.step.id,
+                expected_step_id=now.step.id,
+                message=(
+                    f"Wrong object: the {obj.replace('_', ' ')} is for step "
+                    f"{target.ordinal + 1}. Now: {now.step.name}"
+                ),
+            )
+        ]
 
     def _check_free_float(self, t: float) -> list[Event]:
         """Advise when a tether-required object is drifting untouched (D-07).

@@ -80,7 +80,7 @@ def _dist_mm(a: tuple[float, float, float], b: tuple[float, float, float]) -> fl
     return math.dist(a, b)
 
 
-def _resolve_contact_class(snap: FrameSnapshot, contact) -> str | None:
+def contact_class(snap: FrameSnapshot, contact) -> str | None:
     """Class of the contacted object, from the record or the frame's tracks."""
     if contact.b_cls:
         return contact.b_cls
@@ -108,9 +108,11 @@ def _eval_detect(p, ctx: EvalContext) -> PredicateResult:
 
     confs = []
     for f in frames:
-        det = f.best({p.obj_class}, p.min_conf)
+        det = f.best({p.obj_class}, p.min_conf, p.min_area)
         if det is None:
             latest = frames[-1].best({p.obj_class})
+            if latest is not None and frames[-1].area(latest) < p.min_area:
+                return PredicateResult(False, latest.conf, f"{p.obj_class} too far away")
             return PredicateResult(False, latest.conf if latest else 0.0, f"{p.obj_class} not held")
         confs.append(det.conf)
     return PredicateResult(True, min(confs), p.obj_class)
@@ -142,20 +144,23 @@ def _eval_contact(p, ctx: EvalContext) -> PredicateResult:
     # perception ever needing to know what a procedure object is.
     a_classes = ctx.procedure.classes_for(p.a) or {p.a}
     b_classes = ctx.procedure.classes_for(p.b) or {p.b}
+    hand = "" if p.side == "any" else f" ({p.side} hand)"
     confs = []
     for f in frames:
         hit = None
         for c in f.contacts:
             if c.a not in a_classes or c.conf < p.min_conf:
                 continue
-            cls = _resolve_contact_class(f, c)
+            if p.side != "any" and c.side != p.side:
+                continue
+            cls = contact_class(f, c)
             if cls is not None and cls in b_classes:
                 hit = c
                 break
         if hit is None:
-            return PredicateResult(False, 0.0, f"{p.a}-{p.b} not in contact")
+            return PredicateResult(False, 0.0, f"{p.a}-{p.b} not in contact{hand}")
         confs.append(hit.conf)
-    return PredicateResult(True, min(confs), f"{p.a}-{p.b}")
+    return PredicateResult(True, min(confs), f"{p.a}-{p.b}{hand}")
 
 
 def _eval_moved(p, ctx: EvalContext) -> PredicateResult:
@@ -163,6 +168,8 @@ def _eval_moved(p, ctx: EvalContext) -> PredicateResult:
         return PredicateResult(False, 0.0, f"{p.obj} no step origin")
 
     frames = ctx.window.since(ctx.step_started_t)
+    if p.min_frac is not None:
+        return _moved_in_picture(p, frames, ctx.procedure)
     positions = [pos for f in frames if (pos := _centroid(f, p.obj, ctx.procedure)) is not None]
     if len(positions) < 2:
         return PredicateResult(False, 0.0, f"{p.obj} no rack position")
@@ -172,6 +179,42 @@ def _eval_moved(p, ctx: EvalContext) -> PredicateResult:
     return PredicateResult(
         displacement >= p.min_disp_mm, ratio, f"{p.obj} moved {displacement:.0f}mm"
     )
+
+
+def _moved_in_picture(p, frames: list[FrameSnapshot], procedure: Procedure) -> PredicateResult:
+    """How far the object's box centre travelled, in fractions of the frame."""
+    classes = procedure.classes_for(p.obj)
+    positions = []
+    for f in frames:
+        det = f.best(classes)
+        if det is not None:
+            cx, cy = det.bbox_center
+            positions.append((cx / max(f.width, 1), cy / max(f.height, 1)))
+    if len(positions) < 2:
+        return PredicateResult(False, 0.0, f"{p.obj} not seen moving")
+    travelled = max(math.dist(positions[0], q) for q in positions[1:])
+    ratio = min(1.0, travelled / p.min_frac)
+    return PredicateResult(
+        travelled >= p.min_frac, ratio, f"{p.obj} moved {travelled * 100:.0f}% of frame"
+    )
+
+
+def _eval_tilted(p, ctx: EvalContext) -> PredicateResult:
+    frames = _streak(ctx, p.hold_frames)
+    if frames is None:
+        return PredicateResult(False, 0.0, f"{p.obj} warming up")
+    classes = ctx.procedure.classes_for(p.obj)
+    confs = []
+    for f in frames:
+        det = f.best(classes, p.min_conf)
+        if det is None:
+            return PredicateResult(False, 0.0, f"{p.obj} not seen")
+        x0, y0, x1, y1 = det.bbox
+        ratio = (x1 - x0) / max(y1 - y0, 1e-6)
+        if ratio < p.min_ratio:
+            return PredicateResult(False, det.conf, f"{p.obj} upright")
+        confs.append(det.conf)
+    return PredicateResult(True, min(confs), f"{p.obj} tilted")
 
 
 def _eval_near(p, ctx: EvalContext) -> PredicateResult:
@@ -245,6 +288,21 @@ def _eval_count(p, ctx: EvalContext) -> PredicateResult:
     return PredicateResult(True, 1.0, f"count {p.obj_class}={seen}")
 
 
+def _eval_gesture(p, ctx: EvalContext) -> PredicateResult:
+    frames = _streak(ctx, p.hold_frames)
+    if frames is None:
+        return PredicateResult(False, 0.0, f"{p.gesture} warming up")
+
+    confs = []
+    for f in frames:
+        hit = f.gesture(p.gesture, p.side, p.min_conf)
+        if hit is None:
+            latest = frames[-1].gesture(p.gesture, p.side)
+            return PredicateResult(False, latest.conf if latest else 0.0, f"{p.gesture} not held")
+        confs.append(hit.conf)
+    return PredicateResult(True, min(confs), p.gesture)
+
+
 _HANDLERS = {
     "detect": _eval_detect,
     "absent": _eval_absent,
@@ -253,6 +311,8 @@ _HANDLERS = {
     "near": _eval_near,
     "dwell": _eval_dwell,
     "count": _eval_count,
+    "gesture": _eval_gesture,
+    "tilted": _eval_tilted,
 }
 
 

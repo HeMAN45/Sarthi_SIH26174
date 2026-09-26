@@ -3,7 +3,9 @@
 Two detection modes share one interface:
 
 *Boxes.* A YOLO detector (or YOLO-World, open-vocabulary) yields bounding boxes.
-This is the path the trained BAS-prop model will take.
+This is the path the trained BAS-prop model will take. A detector trained on
+this device runs *beside* the stock one, so the operator's own objects join
+the 80 stock ones instead of replacing them.
 
 *Classification.* A whole presented object is classified instead — which is what
 makes "just add pictures" training work, and how object *states* (open vs closed)
@@ -215,15 +217,41 @@ class Detector:
         self.model = model
         self.open_vocab = open_vocab
         self.classifier: Any = None
+        #: A detector trained on this device, run beside the stock model.
+        self.trained_model: Any = None
+        self.trained_path: str | None = None
+        #: Trained classes the operator deleted. Weights cannot forget a class
+        #: until retrained, so it is hidden and never reported instead.
+        self.retired: set[str] = set()
         self.names = model.names
-        self.all_classes = COCO80 if open_vocab else sorted(set(model.names.values()))
+        #: What the stock model can find.
+        self.base_classes = COCO80 if open_vocab else sorted(set(model.names.values()))
+        self.all_classes = list(self.base_classes)
 
     # ------------------------------------------------------------------ modes
+
+    @property
+    def trained(self) -> bool:
+        return self.trained_model is not None
+
+    @property
+    def trained_classes(self) -> list[str]:
+        """The operator's own objects -- what the trained detector finds."""
+        if self.trained_model is None:
+            return []
+        return sorted(set(self.trained_model.names.values()) - self.retired)
+
+    def retire(self, names: set[str]) -> None:
+        """Stop reporting trained classes the operator has deleted."""
+        self.retired |= set(names)
+        self.all_classes = sorted(set(self.base_classes) | set(self.trained_classes))
 
     @property
     def mode(self) -> str:
         if self.classifier is not None:
             return "classifier"
+        if self.trained:
+            return "detector"
         return "open-vocab" if self.open_vocab else "stand-in"
 
     def set_classes(self, classes: set[str]) -> None:
@@ -232,6 +260,24 @@ class Detector:
             return
         self.model.set_classes(sorted(classes) or ["object"])
         self.names = self.model.names
+
+    def use_detector(self, model_path: str) -> list[str]:
+        """Add a detector trained on this device beside the stock one.
+
+        The operator's objects join the 80 instead of replacing them, so one
+        procedure can ask for the stock bottle and a trained cap state. Where a
+        trained class shares a stock name, the trained model answers for it.
+        Leaves classifier mode. Returns the trained classes.
+        """
+        from ultralytics import YOLO
+
+        model = YOLO(model_path)
+        self.trained_model = model
+        self.trained_path = model_path
+        self.retired = set()  # a new model knows only what it was trained on
+        self.classifier = None
+        self.all_classes = sorted(set(self.base_classes) | set(self.trained_classes))
+        return [model.names[i] for i in sorted(model.names)]
 
     def use_classifier(self, model_path: str) -> list[str]:
         """Swap to classification mode. Returns its non-background classes."""
@@ -255,9 +301,11 @@ class Detector:
     ) -> DetectionResult:
         """One frame in, detection payloads out.
 
-        ``multi`` reports every visible object, which a rack procedure needs
-        because ``near`` compares two of them in the same frame. Without it we
-        keep only the largest — the "present one object to the camera" flow.
+        ``multi`` reports every object in view, which a scene procedure needs:
+        ``near`` compares two of them, ``dwell`` watches one sitting in its
+        spot. Without it the procedure is a presentation -- "show the bottle"
+        -- and only objects held up close count: at least ``min_area`` of the
+        frame. Every such object counts, so two can be shown at once.
         """
         if self.classifier is not None:
             return self._classify(frame)
@@ -288,12 +336,41 @@ class Detector:
     def _boxes(
         self, frame: np.ndarray, wanted: set[str], min_area: float, multi: bool
     ) -> DetectionResult:
-        result = self.model.predict(frame, conf=BOX_MIN_CONF, verbose=False)[0]
-        frame_area = float(frame.shape[0] * frame.shape[1])
+        # Each model is asked only for what the procedure wants, and a model
+        # with nothing wanted from it is not run at all: a body-actions-only
+        # procedure costs no detection.
+        mine = set(self.trained_classes) & wanted
+        cands = self._candidates(self.model, self.names, frame, wanted - mine)
+        if mine:
+            cands += self._candidates(self.trained_model, self.trained_model.names, frame, mine)
+        cands.sort(key=lambda c: c.area_frac, reverse=True)
 
+        out = DetectionResult(candidates=cands)
+        for cand in cands:
+            if not multi and cand.area_frac < min_area:
+                continue
+            cand.kept = True
+            out.objects.append(
+                {
+                    "cls": cand.cls,
+                    "conf": round(cand.conf, 3),
+                    "bbox": list(cand.bbox),
+                    "track_id": None,
+                }
+            )
+        return out
+
+    @staticmethod
+    def _candidates(
+        model: Any, names: dict[int, str], frame: np.ndarray, wanted: set[str]
+    ) -> list[Candidate]:
+        if not wanted:
+            return []
+        result = model.predict(frame, conf=BOX_MIN_CONF, verbose=False)[0]
+        frame_area = float(frame.shape[0] * frame.shape[1])
         cands: list[Candidate] = []
         for box in result.boxes:
-            cls_name = self.names[int(box.cls[0])]
+            cls_name = names[int(box.cls[0])]
             if cls_name not in wanted:
                 continue
             x0, y0, x1, y1 = (float(v) for v in box.xyxy[0])
@@ -303,27 +380,7 @@ class Detector:
                     cls=cls_name, conf=float(box.conf[0]), bbox=(x0, y0, x1, y1), area_frac=area
                 )
             )
-        cands.sort(key=lambda c: c.area_frac, reverse=True)
-
-        if multi:
-            keep = range(len(cands))
-        elif cands and cands[0].area_frac >= min_area:
-            keep = range(1)
-        else:
-            keep = range(0)
-
-        out = DetectionResult(candidates=cands)
-        for i in keep:
-            cands[i].kept = True
-            out.objects.append(
-                {
-                    "cls": cands[i].cls,
-                    "conf": round(cands[i].conf, 3),
-                    "bbox": list(cands[i].bbox),
-                    "track_id": None,
-                }
-            )
-        return out
+        return cands
 
     # ---------------------------------------------------------------- overlay
 

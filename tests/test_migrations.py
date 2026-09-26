@@ -35,6 +35,42 @@ class TestMigrate:
         assert "schema_version" in tables
         conn.close()
 
+    def test_wrong_object_alerts_are_storable_and_old_alerts_survive(
+        self, tmp_db: Path, tmp_path: Path, migrations_dir: Path
+    ) -> None:
+        # A database from before 002: an alert is already on record.
+        only_first = tmp_path / "m1"
+        only_first.mkdir()
+        (only_first / "001_initial.sql").write_text(
+            (migrations_dir / "001_initial.sql").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        conn = migrate(tmp_db, migrations_dir=only_first)
+        conn.execute(
+            "INSERT INTO procedures (id, name, version, vocabulary, rack_markers, yaml_sha256, "
+            "source_path, step_count, created_at) VALUES ('p', 'P', 1, 'v', 'd', 'x', 'p', 1, 't')"
+        )
+        conn.execute(
+            "INSERT INTO sessions (id, procedure_id, procedure_version, mode, started_at, "
+            "status, session_dir) VALUES ('s', 'p', 1, 'live', 't', 'running', 'd')"
+        )
+        conn.execute(
+            "INSERT INTO alerts (session_id, bus_seq, kind, severity, message, raised_at) "
+            "VALUES ('s', 1, 'skip', 'high', 'Step skipped', 't')"
+        )
+        conn.commit()
+        conn.close()
+
+        conn = migrate(tmp_db, migrations_dir=migrations_dir)
+        for seq, kind in ((2, "wrong_object"), (3, "wrong_hand")):
+            conn.execute(
+                "INSERT INTO alerts (session_id, bus_seq, kind, severity, message, raised_at) "
+                f"VALUES ('s', {seq}, '{kind}', 'high', 'x', 't')"
+            )
+        kinds = [r[0] for r in conn.execute("SELECT kind FROM alerts ORDER BY bus_seq")]
+        assert kinds == ["skip", "wrong_object", "wrong_hand"]
+        assert conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0] == 3
+        conn.close()
+
     def test_idempotent(self, tmp_db: Path, migrations_dir: Path) -> None:
         conn1 = migrate(tmp_db, migrations_dir=migrations_dir)
         version1 = conn1.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]

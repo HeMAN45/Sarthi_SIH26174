@@ -26,6 +26,7 @@ from orbital_har.perception.detect import Detector
 from orbital_har.perception.pipeline import PerceptionPipeline
 from orbital_har.reasoning.engine import Engine, EngineConfig
 from orbital_har.reasoning.schema import Procedure
+from orbital_har.runtime.experiments import compose
 from orbital_har.runtime.store import Store
 from orbital_har.runtime.telemetry import TelemetryWriter
 from orbital_har.runtime.videoout import DEFAULT_RECORD_HEIGHT, Recorder, record_size
@@ -74,12 +75,14 @@ def perception_needs(proc: Procedure) -> tuple[bool, bool]:
     means PROC-A lights up the full pipeline and the stand-in demo stays cheap,
     with nobody having to remember a flag.
     """
-    kinds = {p.kind for s in proc.steps for p in (*s.requires, *s.any_of)}
-    # Only millimetre predicates need the rack. ``dwell`` regions are fractions
-    # of the image, so a marker-less "put it back in its spot" check works on a
-    # plain webcam -- and must not report a rack it never needed as lost.
-    needs_rack = bool(proc.markers) or bool(kinds & {"near", "moved"})
-    needs_pose = "contact" in kinds
+    preds = [p for s in proc.steps for p in (*s.requires, *s.any_of)]
+    kinds = {p.kind for p in preds}
+    # Only millimetre predicates need the rack. ``dwell`` regions and a
+    # ``moved`` measured in the picture are fractions of the image, so they
+    # work on a plain webcam -- and must not report a rack they never needed.
+    mm_moves = any(p.kind == "moved" and p.min_disp_mm is not None for p in preds)
+    needs_rack = bool(proc.markers) or "near" in kinds or mm_moves
+    needs_pose = bool(kinds & {"contact", "gesture"})
     return needs_rack, needs_pose
 
 
@@ -99,6 +102,9 @@ def voice_lines(proc: Procedure) -> list[str]:
         lines.append(f"Cannot verify: {step.name}. Please confirm.")
         lines.append(f"No progress on: {step.name}")
         lines.append(f"Step timed out and was skipped: {step.name}")
+        for p in (*step.requires, *step.any_of):
+            if getattr(p, "side", "any") in ("left", "right") and p.kind in ("gesture", "contact"):
+                lines.append(f"Wrong hand: use your {p.side} hand. Now: {step.name}")
     return lines
 
 
@@ -108,52 +114,15 @@ def build_procedure(
     """Build a Procedure from an ordered list of detector class names.
 
     One step per selected object, presented in order. Any class the detector
-    knows is allowed. The trained BAS model would replace these generic classes
-    with real experiment-object states.
+    knows is allowed; richer steps -- body actions, own wording -- go through
+    :func:`orbital_har.runtime.experiments.compose`, which this delegates to.
     """
     seq = [c for c in sequence if c in valid]
     if not seq:
         raise ValueError("sequence is empty or contains unknown classes")
     if len(seq) > 15:
         raise ValueError("keep the sequence to 15 steps or fewer")
-
-    distinct: list[str] = []
-    for c in seq:
-        if c not in distinct:
-            distinct.append(c)
-    objects = [{"id": c.replace(" ", "_"), "classes": [c]} for c in distinct]
-
-    steps = []
-    for i, c in enumerate(seq, start=1):
-        steps.append(
-            {
-                "id": f"s{i}",
-                "name": f"Present the {c}",
-                "voice": f"Step {i}. Please present the {c}.",
-                "preconditions": [f"s{i - 1}"] if i > 1 else [],
-                # About half a second at webcam rates: long enough that a
-                # one-frame misclassification cannot complete a step.
-                "requires": [{"detect": c, "hold_frames": 8}],
-                "timeout_s": 120,
-                "on_timeout": "stall",
-            }
-        )
-
-    return Procedure.model_validate(
-        {
-            "procedure": {
-                "id": "custom",
-                "name": name,
-                "version": 1,
-                "rack_markers": "DICT_4X4_50",
-                "vocabulary": "coco-standin",
-            },
-            "markers": [],
-            "regions": [],
-            "objects": objects,
-            "steps": steps,
-        }
-    )
+    return compose([{"object": c} for c in seq], name, "custom")
 
 
 def procedure_rows(proc: Procedure) -> list[dict[str, Any]]:
@@ -496,17 +465,49 @@ class LiveSession:
         """
         self._pending.append(("load", proc, start))
 
-    def use_classifier(self, model_path: str, proc: Procedure | None = None) -> None:
-        """Swap in a trained classifier and start a run with it.
+    def use_classifier(
+        self, model_path: str, proc: Procedure | None = None, kind: str = "classify"
+    ) -> None:
+        """Deploy a model trained on this device and start a run with it.
 
-        With ``proc`` the run follows that procedure (its classes must be the
-        model's); without, every trained class becomes one step, in order.
+        ``kind`` is "detect" (a detector, added beside the stock one) or
+        "classify" (a whole-frame classifier, which replaces it). With ``proc``
+        the run follows that procedure; without, every trained class becomes
+        one step.
         """
-        self._pending.append(("classifier", model_path, proc))
+        self._pending.append(("classifier", model_path, proc, kind))
+
+    def add_trained(self, model_path: str, keep: set[str] | None = None) -> list[str]:
+        """Put the operator's trained objects beside the stock ones, now.
+
+        For start-up, before the loop runs: a restart must not drop the objects
+        someone spent twenty minutes training. A model that will not load is
+        reported and skipped, never fatal (invariant #10). Classes not in
+        ``keep`` -- deleted in the Models tab since training -- stay hidden.
+        """
+        try:
+            names = self.detector.use_detector(model_path)
+        except Exception as exc:  # missing or corrupt weights
+            print(f"[detector] could not load your trained objects ({model_path}): {exc}")
+            return []
+        if keep is not None:
+            self.retire_trained(set(names) - keep)
+            names = [n for n in names if n in keep]
+        print(f"[detector] your trained objects: {', '.join(names)}")
+        return names
+
+    def retire_trained(self, names: set[str]) -> None:
+        """Hide deleted trained classes from the object list and from detection."""
+        if names:
+            self.detector.retire(names)
 
     def set_mirror(self, on: bool) -> None:
         """Mirror the displayed picture. Takes effect on the next frame."""
         self.mirror = bool(on)
+
+    def set_body(self, on: bool) -> None:
+        """Body tracking on or off; a procedure whose steps need it keeps it on."""
+        self._pending.append(("body", bool(on)))
 
     # ------------------------------------------------------------------ reads
 
@@ -631,6 +632,8 @@ class LiveSession:
             want_rack=want_rack,
             want_pose=want_pose,
             rack_dictionary=proc.procedure.rack_markers,
+            regions=[(r.id, r.rect) for r in proc.regions],
+            scene=proc.is_scene,
         )
         # ~0.2 s a line, so this runs off the capture thread. Until it finishes
         # lines synthesize on demand; they are simply slower to arrive.
@@ -667,9 +670,14 @@ class LiveSession:
                 else:
                     self._power(False)
                     self.phase = PHASE_READY
+            elif kind == "body":
+                self.pipeline.set_body(cmd[1])
             elif kind == "classifier":
                 self._seal()
-                names = self.detector.use_classifier(cmd[1])
+                if cmd[3] == "detect":
+                    names = self.detector.use_detector(cmd[1])
+                else:
+                    names = self.detector.use_classifier(cmd[1])
                 try:
                     self._swap(
                         cmd[2] or build_procedure(names, set(names), name="Trained-states demo")

@@ -210,7 +210,12 @@ def cmd_live(args: argparse.Namespace, console: Console) -> int:
     detector = Detector(YOLO(args.model))
     pipeline = PerceptionPipeline(detector)
     want_rack, want_pose = perception_needs(proc)
-    pipeline.configure(want_rack=want_rack, want_pose=want_pose, rack_dictionary=meta.rack_markers)
+    pipeline.configure(
+        want_rack=want_rack,
+        want_pose=want_pose,
+        rack_dictionary=meta.rack_markers,
+        scene=proc.is_scene,
+    )
 
     engine = make_engine(proc)
     bus = EventBus()

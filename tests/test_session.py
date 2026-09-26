@@ -14,11 +14,13 @@ from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 
+import cv2
 import numpy as np
 import pytest
 
 from orbital_har.perception.capture import Camera
 from orbital_har.perception.detect import DetectionResult, Detector
+from orbital_har.reasoning.schema import Procedure
 from orbital_har.runtime.session import (
     PHASE_COMPLETE,
     PHASE_LIVE,
@@ -196,7 +198,10 @@ class TestCamera:
         rig.detector.seen = ["bottle"]
         rig.session.set_camera(True)
         assert wait_for(lambda: rig.session.state()["camera"]["state"] == "live")
-        time.sleep(0.4)
+        # The first frame waits on the pose model's first inference, which is
+        # slow in a cold process: wait for it rather than for a fixed time.
+        assert wait_for(lambda: rig.session.capture_raw() is not None)
+        time.sleep(0.4)  # a few more frames: none of them may be judged
         assert _phase(rig) == PHASE_READY
         assert _rows(rig) == []
         assert all(s["state"] == "pending" for s in rig.session.state()["steps"])
@@ -337,9 +342,15 @@ class TestEndpoints:
 
     def test_library_says_which_steps_use_each_class(self, client) -> None:
         lib = {p["id"]: p for p in client.get("/api/procedures").json()}
-        uses = lib["drink_water"]["uses"]
-        assert uses["holding_closed"] == ["Pick up the bottle", "Close the bottle cap"]
-        assert uses["drinking"] == ["Drink the water"]
+        entry = lib["drink_water"]
+        assert entry["uses"]["bottle_closed"] == [
+            "Pick up the bottle",
+            "Close the bottle cap",
+            "Put the bottle back in its place",
+        ]
+        assert "Drink the water" in entry["uses"]["bottle_open"]
+        # The stock detector already knows "bottle": only the cap states need training.
+        assert entry["train"] == ["bottle_closed", "bottle_open"]
 
     def test_prepare_creates_every_class_a_procedure_needs(self, client, tmp_path) -> None:
         from orbital_har.runtime.training import TrainManager
@@ -347,13 +358,30 @@ class TestEndpoints:
 
         server_app._trainer = TrainManager(tmp_path / "custom")
         r = client.post("/api/train/prepare?procedure=drink_water").json()
-        assert set(r["created"]) == {
-            "background",
-            "bottle_home",
-            "drinking",
-            "holding_closed",
-            "holding_open",
+        assert set(r["created"]) == {"background", "bottle_closed", "bottle_open"}
+
+    def test_box_review_lists_suspect_background_photos_too(self, client, tmp_path) -> None:
+        from orbital_har.runtime.training import TrainManager
+        from orbital_har.server import app as server_app
+
+        tm = TrainManager(tmp_path / "custom")
+        for cls in ("book", "background"):
+            (tm.images / cls).mkdir()
+            for i in range(3):
+                cv2.imwrite(str(tm.images / cls / f"000{i}.jpg"), np.zeros((48, 64, 3), np.uint8))
+        hit = {"box": [0.1, 0.1, 0.5, 0.5], "conf": 0.8, "label": "book"}
+        tm.boxes.data = {
+            "boxes": {"book": {"0000.jpg": hit, "0002.jpg": hit}, "background": {"0001.jpg": hit}},
+            "excluded": ["background/0001.jpg"],
+            "flagged": ["background/0001.jpg"],
+            "label": "book",
         }
+        server_app._trainer = tm
+        r = client.get("/api/train/boxes").json()
+        assert r["photos"] == {"book": ["0000.jpg", "0002.jpg"], "background": ["0001.jpg"]}
+        assert r["classes"] == {"book": {"total": 3, "found": 2, "usable": 2}}
+        tile = client.get("/api/train/boxes/image?cls=background&name=0001.jpg")
+        assert tile.status_code == 200 and tile.headers["content-type"] == "image/jpeg"
 
     def test_deploying_with_a_procedure_the_model_cannot_serve_is_refused(
         self, client, tmp_path, monkeypatch
@@ -367,7 +395,24 @@ class TestEndpoints:
         server_app._trainer = tm
         r = client.post("/api/train/use?procedure=drink_water")
         assert r.status_code == 409
-        assert "holding_open" in r.json()["missing"]
+        assert "bottle_open" in r.json()["missing"]
+
+    def test_a_trained_detector_deploys_beside_the_stock_objects(
+        self, client, rig, tmp_path, monkeypatch
+    ) -> None:
+        from orbital_har.runtime.training import TrainManager
+        from orbital_har.server import app as server_app
+
+        tm = TrainManager(tmp_path / "custom")
+        tm.model_path, tm.kind = "never-loaded.pt", "detect"
+        monkeypatch.setattr(tm, "model_classes", lambda: ["bottle_closed", "bottle_open"])
+        server_app._trainer = tm
+        deployed: list[tuple] = []
+        monkeypatch.setattr(rig.session, "use_classifier", lambda *a: deployed.append(a))
+        # "bottle" comes from the stock detector the trained one joins.
+        r = client.post("/api/train/use?procedure=drink_water")
+        assert r.status_code == 200, r.json()
+        assert deployed[0][2] == "detect"
 
     def test_testing_a_model_explains_a_camera_that_is_off(self, client, tmp_path) -> None:
         from orbital_har.runtime.training import TrainManager
@@ -379,3 +424,92 @@ class TestEndpoints:
         r = client.get("/api/train/predict")
         assert r.status_code == 400
         assert "camera is off" in r.json()["error"]
+
+    # ---------------------------------------------------------- experiments
+
+    @pytest.fixture()
+    def saving(self, rig, tmp_path):
+        from fastapi.testclient import TestClient
+
+        from orbital_har.server.app import app, configure
+        from tests.conftest import PROCEDURES
+
+        configure(
+            rig.session.store,
+            session=rig.session,
+            procedures=PROCEDURES,
+            experiments=tmp_path / "experiments",
+        )
+        return TestClient(app)
+
+    def test_save_list_run_edit_delete(self, saving, rig) -> None:
+        steps = [{"object": "cup", "instruction": "Show the cup"}, {"gesture": "hand_raised"}]
+        r = saving.post("/api/experiments", json={"name": "My check", "steps": steps}).json()
+        assert r["ok"] and r["id"] == "my_check"
+
+        lib = {p["id"]: p for p in saving.get("/api/procedures").json()}
+        assert lib["my_check"]["source"] == "saved"
+        assert lib["demo_live"]["source"] == "builtin"
+        assert lib["my_check"]["steps"] == ["Show the cup", "Raise your hand"]
+
+        assert saving.post("/api/procedure/load", json={"id": "my_check", "start": True}).json()[
+            "ok"
+        ]
+        assert wait_for(lambda: rig.session.state()["procedure_id"] == "my_check")
+        assert wait_for(lambda: rig.session.phase == PHASE_LIVE)
+
+        got = saving.get("/api/experiments/my_check").json()
+        assert got["name"] == "My check" and got["steps"][1]["gesture"] == "hand_raised"
+        edited = {"name": "My check", "steps": steps[:1], "id": "my_check"}
+        assert saving.post("/api/experiments", json=edited).json()["id"] == "my_check"
+        assert len(saving.get("/api/experiments/my_check").json()["steps"]) == 1
+
+        assert saving.delete("/api/experiments/my_check").json()["ok"]
+        assert "my_check" not in {p["id"] for p in saving.get("/api/procedures").json()}
+
+    def test_a_saved_name_never_shadows_a_builtin(self, saving) -> None:
+        r = saving.post(
+            "/api/experiments", json={"name": "demo live", "steps": [{"object": "cup"}]}
+        )
+        assert r.json()["id"] == "demo_live_2"
+
+    def test_saving_explains_what_is_wrong(self, saving) -> None:
+        r = saving.post("/api/experiments", json={"name": "  ", "steps": [{"object": "cup"}]})
+        assert r.status_code == 400 and "name" in r.json()["error"]
+        r = saving.post("/api/experiments", json={"name": "x", "steps": [{"instruction": "?"}]})
+        assert r.status_code == 400 and "step 1" in r.json()["error"]
+
+    def test_run_once_with_body_actions_without_saving(self, client, rig) -> None:
+        steps = [{"gesture": "hands_together", "object": "cup"}]
+        assert client.post("/api/build", json={"name": "Once", "steps": steps}).json()["ok"]
+        assert wait_for(lambda: rig.session.state()["procedure"] == "Once")
+
+    def test_run_once_refuses_an_object_the_detector_cannot_see(self, client, rig) -> None:
+        steps = [{"object": "cup"}, {"object": "lunar sample"}]
+        r = client.post("/api/build", json={"name": "Nope", "steps": steps})
+        assert r.status_code == 400
+        assert "lunar sample" in r.json()["error"]
+
+    def test_body_tracking_toggle_reaches_the_state(self, client, rig) -> None:
+        client.post("/api/body?on=false")
+        assert wait_for(lambda: rig.session.state()["perception"]["body"]["enabled"] is False)
+        client.post("/api/body?on=true")
+        assert wait_for(lambda: rig.session.state()["perception"]["body"]["enabled"] is True)
+
+
+def test_trained_objects_that_will_not_load_are_reported_not_fatal(rig, monkeypatch, capsys):
+    def corrupt(path: str) -> list[str]:
+        raise RuntimeError("not a model")
+
+    monkeypatch.setattr(rig.session.detector, "use_detector", corrupt)
+    assert rig.session.add_trained("best.pt") == []
+    assert "could not load your trained objects" in capsys.readouterr().out
+    assert rig.session.detector.all_classes == ["book", "bottle", "cup"]  # stock still there
+
+
+def test_a_scene_procedure_has_every_object_reported(rig) -> None:
+    proc = Procedure.load(Path(__file__).resolve().parents[1] / "procedures" / "drink_water.yaml")
+    rig.session._configure_for(proc)
+    assert rig.session.pipeline.scene is True
+    rig.session._configure_for(build_procedure(["cup"], {"cup"}))
+    assert rig.session.pipeline.scene is False

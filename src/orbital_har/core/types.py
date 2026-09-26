@@ -35,6 +35,10 @@ RESOLVED_STATES = frozenset({StepState.COMPLETE, StepState.OVERRIDDEN, StepState
 class AlertKind(StrEnum):
     SKIP = "skip"
     OUT_OF_ORDER = "out_of_order"
+    #: The operator is handling an object only a later step uses.
+    WRONG_OBJECT = "wrong_object"
+    #: The step asks for one hand and the operator is using the other.
+    WRONG_HAND = "wrong_hand"
     STALL = "stall"
     UNVERIFIED = "unverified"
     FREE_FLOAT = "free_float"
@@ -54,6 +58,7 @@ class EventType(StrEnum):
     HAND = "hand"
     CONTACT = "contact"
     POSE = "pose"
+    GESTURE = "gesture"
     STEP_STATE = "step_state"
     ALERT = "alert"
     CREW_ACTION = "crew_action"
@@ -144,6 +149,8 @@ class Contact:
     b_track_id: int | None
     b_cls: str | None
     conf: float
+    #: Which hand, for a hand contact: "left" or "right". None when unknown.
+    side: str | None = None
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Contact:
@@ -151,6 +158,49 @@ class Contact:
             a=str(d.get("a", "hand")),
             b_track_id=d.get("track_id"),
             b_cls=d.get("cls"),
+            conf=float(d.get("conf", 1.0)),
+            side=d.get("side"),
+        )
+
+
+#: Body actions read from pose, in the operator's own frame of reference.
+#: Shared here because perception produces them and reasoning validates
+#: procedures against them, and the two may not import each other.
+GESTURES: tuple[str, ...] = (
+    # one hand -- a step may ask for the left or the right
+    "hand_raised",
+    "hand_to_face",
+    "hand_on_head",
+    "reaching",
+    "waving",
+    "lifting",
+    "lowering",
+    # both hands or the whole body
+    "both_hands_raised",
+    "hands_together",
+    "arms_crossed",
+    "arms_out",
+    "hands_on_hips",
+    "clapping",
+)
+
+#: The gestures made with one hand; the others are reported for ``both``.
+ONE_HANDED_GESTURES = frozenset(GESTURES[:7])
+
+
+@dataclass(frozen=True, slots=True)
+class Gesture:
+    """One body action seen in one frame. ``side`` is left, right or both."""
+
+    name: str
+    side: str
+    conf: float
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> Gesture:
+        return cls(
+            name=str(d["name"]),
+            side=str(d.get("side", "both")),
             conf=float(d.get("conf", 1.0)),
         )
 

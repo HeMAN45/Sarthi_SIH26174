@@ -12,8 +12,9 @@ export const MODE_HINT: Record<Mode, string> = {
   strict: "Also flags steps done ahead of their preconditions as out of sequence.",
 };
 
-export function detectorLabel(mode: string | undefined): string {
+export function detectorLabel(mode: string | undefined, trained: string[] = []): string {
   if (mode === "classifier") return "Trained classifier";
   if (mode === "open-vocab") return "Open-vocabulary";
+  if (mode === "detector") return `COCO-80 + ${trained.length || "your"} trained`;
   return "Stand-in (COCO-80)";
 }

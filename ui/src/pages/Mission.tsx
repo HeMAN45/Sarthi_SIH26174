@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Activity, ArrowRight, Check, CircleDashed, Clock3, Cpu, Link2, ListChecks, Mic, Play, RadioTower,
+  ArrowRight, Check, CircleDashed, Clock3, Link2, ListChecks, Mic, PersonStanding, Play, RadioTower,
   RotateCcw, SkipForward, Square,
 } from "lucide-react";
 import { api } from "../lib/api";
@@ -10,11 +10,12 @@ import type { Traces } from "../lib/useLive";
 import { useAlert } from "../lib/useLive";
 import { fmtBytes, fmtClock, fmtRatio, shortHash } from "../lib/format";
 import Debrief from "../components/Debrief";
+import { gestureLabel } from "../lib/gestures";
 import { meta } from "../lib/states";
 import { Timeline } from "../components/steps";
 import { Badge, Note, PanelHead, Seg } from "../components/ui";
 import type { Mode } from "../lib/modes";
-import { detectorLabel, MODE_HINT, MODE_OPTIONS } from "../lib/modes";
+import { MODE_HINT, MODE_OPTIONS } from "../lib/modes";
 import { AlertBanner, Feed, Standby, Starting, Unavailable, Viewport } from "../components/Viewport";
 import { Bar, Ring, Sparkline } from "../components/viz";
 
@@ -85,7 +86,7 @@ export default function Mission({
           ) : null}
         </Viewport>
 
-        <Metrics s={s} traces={traces} resolved={resolved} total={total} />
+        <Metrics s={s} resolved={resolved} total={total} />
       </div>
 
       {/* ========================================================= state */}
@@ -259,11 +260,54 @@ function parseEvidence(raw: string): { label: string; ok: boolean; detail: strin
   return { label: m[1].replace(/:/g, " · "), ok: m[2] === "ok", detail: m[3], conf: Number(m[4]) };
 }
 
+/* ================================================================== body */
+
+/** What the body tracker sees: whether anyone is there, the actions it reads,
+ *  and what each hand is touching. The PS asks for pose and hand-object
+ *  interaction; this is where they are visible. */
+function BodyCard({ s, camLive }: { s: LiveState; camLive: boolean }) {
+  const b = s.perception.body;
+  const state = !b.enabled ? "Off" : !b.ready ? "Unavailable" : !camLive ? "Standby" : b.tracked ? "Tracking" : "No one in view";
+  const on = b.enabled && b.ready && camLive && b.tracked;
+  return (
+    <div className={`panel metric${on ? "" : " metric-idle"}`}>
+      <div className="metric-head">
+        <PersonStanding size={14} />
+        <span className="eyebrow">Body</span>
+        <span className="spacer" />
+        {b.forced
+          ? <Badge tone="accent">Needed</Badge>
+          : <button className="btn btn-xs btn-ghost" onClick={() => api.body(!b.enabled)}
+                    title={b.enabled ? "Turn body tracking off to save CPU" : "Turn body tracking on"}>
+              {b.enabled ? "Turn off" : "Turn on"}
+            </button>}
+      </div>
+      <div className="metric-value" style={{ fontSize: 22, fontFamily: "var(--sans)", color: on ? "var(--ink)" : undefined }}>
+        {state}
+      </div>
+      <div className="push" style={{ display: "flex", flexWrap: "wrap", gap: 5, minHeight: 25 }}>
+        {on && b.gestures.length === 0 && b.contacts.length === 0 && (
+          <span className="faint" style={{ fontSize: 13 }}>No gesture · hands free</span>
+        )}
+        {on && b.gestures.map((g) => (
+          <Badge key={`${g.name}-${g.side}`} tone="accent">
+            {gestureLabel(g.name)}{g.side === "both" ? "" : ` · ${g.side[0].toUpperCase()}`}
+          </Badge>
+        ))}
+        {on && b.contacts.map((c) => (
+          <Badge key={`${c.side}-${c.object}`} tone="ok">{c.side[0].toUpperCase()} hand → {c.object}</Badge>
+        ))}
+        {!b.enabled && <span className="faint" style={{ fontSize: 13 }}>Pose, hands and gestures paused</span>}
+      </div>
+    </div>
+  );
+}
+
 /* =============================================================== metrics */
 
 function Metrics({
-  s, traces, resolved, total,
-}: { s: LiveState; traces: Traces; resolved: number; total: number }) {
+  s, resolved, total,
+}: { s: LiveState; resolved: number; total: number }) {
   const sess = s.session;
   const bytes = sess?.bytes ?? 0;
   const video = sess?.video_bytes ?? 0;
@@ -317,20 +361,7 @@ function Metrics({
                                    color={s.complete ? "var(--ok)" : "var(--accent)"} /></div>
       </div>
 
-      <div className={`panel metric${camLive ? "" : " metric-idle"}`}>
-        <div className="metric-head">
-          {camLive ? <Activity size={14} /> : <Cpu size={14} />}
-          <span className="eyebrow">Perception</span>
-        </div>
-        <div className="metric-value mono">
-          {camLive ? s.fps.toFixed(1) : "0.0"}<small>fps</small>
-        </div>
-        <div className="metric-sub ellipsis">{detectorLabel(s.perception.detector)}</div>
-        <div className="push">
-          <Sparkline values={traces.fps} height={22} min={0} max={Math.max(35, ...traces.fps)}
-                     color="var(--violet)" fill={false} />
-        </div>
-      </div>
+      <BodyCard s={s} camLive={camLive} />
     </div>
   );
 }

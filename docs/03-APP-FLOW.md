@@ -181,6 +181,36 @@ Step T completes with an unmet precondition of higher ordinal
 Under `strict_preconditions: true` the behaviour changes — the step enters `OUT_OF_ORDER`,
 is not marked complete, and re-evaluates once its preconditions are met. See TRD §7.6.
 
+**Which mode detects what.** §6.2 and §6.3 need the later step to be judged, which only
+Strict mode's lookahead does (Clean judges the current step alone, TRD §7.5). The
+wrong-object alert (§6.3a) works in both.
+
+### 6.3a Wrong object
+
+```
+Step 1 "pick up the bottle" ACTIVE; the operator picks up the phone, which only step 3 uses
+  → after 6 frames of it in hand (or held up, in a presentation procedure)
+  → alert { kind: wrong_object, severity: high, step_id: s3, expected_step_id: s1 }
+  → voice "Wrong object: the phone is for step 3. Now: Pick up the bottle"
+  → no step changes state; putting the phone down and taking the bottle carries on
+```
+
+Quiet for objects an earlier step used, objects the lookahead will judge itself, and
+anything already in view when the step began — the resting scene is not an action. At most
+one alert per step and object every 10 s. See TRD §7.7.
+
+### 6.3b Wrong hand
+
+```
+Step "raise your left hand" ACTIVE; the right hand goes up instead, for 6 frames
+  → alert { kind: wrong_hand, severity: medium, step_id: s2 }
+  → voice "Wrong hand: use your left hand. Now: Raise your left hand"
+  → no step changes state; raising the left hand completes it
+```
+
+Quiet when the left hand is up as well, and when the right hand was already up before the
+step began. One per step every 10 s. See TRD §7.8.
+
 ### 6.4 Low confidence / abstention
 
 ```
@@ -315,15 +345,24 @@ lost. Video loses at most one 60 s segment. On restart, sessions left open are m
 | GET | `/api/procedure` | Current procedure and step states |
 | GET | `/api/procedures` | Procedure library, with what each needs (§9) |
 | POST | `/api/procedure/load` | Hot-swap (§9) |
+| POST | `/api/experiments` | Save a dashboard-built experiment by name (edit with `id`) |
+| GET | `/api/experiments/{id}` | A saved experiment as builder steps, to edit it |
+| DELETE | `/api/experiments/{id}` | Delete a saved experiment |
 | POST | `/api/session/start` | Begin: power the camera, start judging (restart if live) |
 | POST | `/api/session/stop` | End: seal the chain, release the camera |
 | POST | `/api/camera` | Camera preview without a run (training capture) |
 | POST | `/api/camera/mirror` | Mirror the displayed picture (selfie view); perception never flips |
+| POST | `/api/body` | Body tracking on/off (pose, hands, contact, gestures); forced on when a step needs it |
 | GET | `/api/train/classes` | Training set per class, readiness, data advice |
 | POST | `/api/train/prepare` | Create the classes a library procedure needs, plus background |
-| POST | `/api/train/start` | Train the on-device classifier (held-out split, per-class report) |
+| POST | `/api/train/start` | Train on-device: `mode=detect` (boxes) or `classify` (whole scene); held-out report |
+| POST | `/api/train/boxes/propose` | Stock detector proposes the object's box in every photo; suspect background photos start left out |
+| GET | `/api/train/boxes` | Proposed boxes per class, faint (low-confidence) ones, exclusions, suspect background photos |
+| GET | `/api/train/boxes/image` | One photo with its proposed box, for the review grid |
+| POST | `/api/train/boxes/toggle` | Leave a photo out of training, or bring one back (suspect background included) |
 | GET | `/api/train/predict` | Test stage: the model's verdict on the current frame, by the run rule |
-| POST | `/api/train/use` | Deploy the classifier and start a run, optionally with a named procedure |
+| POST | `/api/build` | Run builder steps once without saving; objects the detector cannot see are refused. A step is `{object, gesture, instruction, hand: any\|left\|right, how: show\|hold\|pour\|move}` |
+| POST | `/api/train/use` | Deploy the trained model (detector or classifier) and start a run, optionally with a named procedure |
 | POST | `/api/skip` | Crew skip of the current step |
 | POST | `/api/shutdown` | Seal, release the camera, exit the process |
 | POST | `/api/session/override` | Crew override |

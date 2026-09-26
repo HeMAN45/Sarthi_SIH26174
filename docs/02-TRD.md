@@ -126,7 +126,10 @@ parallel development, and demo insurance possible.
 | `crew_action` | server | `{action, step_id, actor: "crew"}` |
 | `system` | any | `{level, component, message, metrics{}}` |
 
-`alert.kind` ∈ `skip` · `out_of_order` · `stall` · `unverified` · `free_float` · `degraded`
+`alert.kind` ∈ `skip` · `out_of_order` · `wrong_object` · `wrong_hand` · `stall` · `unverified` · `free_float` · `degraded`
+
+A `wrong_object` alert names the step the object belongs to in `step_id` and the step
+the operator should be doing in `expected_step_id` (§7.7).
 
 ### 4.3 Replay
 
@@ -185,13 +188,27 @@ and everything else is a sibling key.
 
 | Predicate | Form | Semantics |
 |---|---|---|
-| `detect` | `detect: <class>` + `min_conf, hold_frames` | Class present above the floor for N consecutive frames |
+| `detect` | `detect: <class>` + `min_conf, hold_frames, min_area` | Class present above the floor for N consecutive frames; `min_area` (fraction of the frame) makes it "held up to the camera" in a scene procedure |
 | `absent` | `absent: <class>` + `min_conf, hold_frames` | Class not present for N frames |
-| `contact` | `contact: [a, b]` + `min_conf, hold_frames` | Hand–object or tool–object contact |
-| `moved` | `moved: <object>` + `min_disp_mm` | Centroid displaced beyond threshold since step start |
+| `contact` | `contact: [a, b]` + `min_conf, hold_frames, side` | Hand–object or tool–object contact; `side: left \| right` requires that hand |
+| `moved` | `moved: <object>` + `min_disp_mm` **or** `min_frac` | Displaced since step start: in rack millimetres (markers needed), or as a fraction of the frame (any webcam) |
+| `tilted` | `tilted: <object>` + `min_ratio, min_conf, hold_frames` | Tipped over: box at least `min_ratio` (0.65) as wide as tall. With `contact`, that is pouring |
 | `near` | `near: <object>` + `to, max_mm, hold_frames` | Within distance of `to`, which may be a **marker or another object** |
 | `dwell` | `dwell: <object>` + `region, seconds` | Held inside a declared region for a duration |
 | `count` | `count: <class>` + `n, min_conf, hold_frames` | Exactly N instances present |
+| `gesture` | `gesture: <name>` + `side, min_conf, hold_frames` | A body action held for N frames, read from pose in the body's own frame (list below) |
+
+Gestures are orientation-free by construction: *up* is the hips-to-shoulders axis (or shoulders-to-head when the hips are out of frame), *across* runs from the right shoulder to the left, and distances are in shoulder widths, so an operator working inverted raises a hand exactly as one standing does. Unknown gesture names are refused at load.
+
+| Kind | Gestures | Read from |
+|---|---|---|
+| One hand (`side: left \| right`) | `hand_raised`, `hand_to_face`, `hand_on_head`, `reaching` | One frame |
+| Both hands / body | `both_hands_raised`, `hands_together`, `arms_crossed`, `arms_out`, `hands_on_hips` | One frame |
+| Movements | `waving`, `lifting`, `lowering` (one hand); `clapping` (both) | The last 2–2.5 s of wrist positions in body coordinates |
+
+`hands_on_hips` also needs both knees in view: seated at a desk the pose model guesses hips under the table edge, and hands resting on the desk then look exactly like hands on hips (170 desk photos, no knee ever above 0.1 confidence). Movements need frame rate: at the 3–4 FPS a laptop CPU gives with pose and detection, a wave or clap must be slow and wide. A movement made while holding an object is `contact` plus the movement — "lift the bottle with your right hand" is `contact: [hand, bottle], side: right` + `gesture: lifting, side: right`.
+
+The stock detector loses a bottle once it is tipped past ~30° (1 of 10 rotated photos found at 30–45°, none at 60–90°), so a reliable `tilted` needs the object trained on the device with pouring photos.
 
 Every predicate also accepts `latch: bool` (default false). A latched predicate, once
 satisfied during a step activation, stays satisfied for the remainder of that activation.
@@ -245,6 +262,22 @@ publish `alert.degraded` and fall back to identity.
 Object **states are modelled as distinct classes** (`red_box_open` vs `red_box_closed`),
 not as a downstream classifier. This collapses a subsystem into the detector and makes
 predicates trivial.
+
+**What is reported depends on the procedure.** A *scene* procedure — rack markers, or any
+`contact`, `near`, `moved`, `dwell` or `count` predicate — gets every object in view: a
+bottle standing in its home spot is small in frame and must still count. Any other
+procedure is a *presentation* ("show the bottle to the camera"): only objects filling at
+least `min_area` of the frame (default 6 %) are reported, every one of them, so two objects
+can be shown at once and a book lying at the back of the desk is not "presented". The
+largest rejected candidate is drawn with a *hold closer* hint. `Procedure.is_scene` decides.
+
+**Objects trained on this device join the stock ones.** A detector trained in the Models
+tab runs beside the stock COCO-80 model rather than replacing it; each model is asked only
+for the classes the loaded procedure wants, and a model nothing is wanted from is not run.
+Where a trained class shares a stock name, the trained model answers for it. The last
+trained detector is re-attached at start-up (`--no-trained` opts out). A whole-scene
+classifier is different: it reports one label for the whole frame and does replace the
+detector.
 
 ### 6.3 Hands and contact
 
@@ -312,6 +345,11 @@ procedure skipped. **Ambient state is not evidence that the operator did somethi
 The cost is that jumping more than the lookahead ahead goes undetected. That is the safer
 failure: the system stays silent rather than inventing a verdict.
 
+The live console sets the lookahead per run mode: **Clean 0** (only the current step is
+judged) and **Strict 1** (the next step too, with `strict_preconditions`). A step done
+before its turn is therefore only *verdicted* in Strict mode; §7.7 is what catches it in
+both.
+
 ### 7.6 Completion and preconditions
 
 By default a step completes when its evidence says it happened, whether or not its
@@ -326,6 +364,35 @@ assistant (NFR-04).
 
 Setting `strict_preconditions: true` gates completion instead: the step enters
 `OUT_OF_ORDER` and re-evaluates once its preconditions are satisfied.
+
+### 7.7 Wrong object
+
+Handling is not resting state. When the operator picks up an object that only a step
+beyond the lookahead uses, the engine raises `wrong_object` at once — "Wrong object: the
+phone is for step 3. Now: Pick up the bottle." Handled means a hand on it; in a
+presentation procedure, being presented is handling it. The rules that keep it quiet:
+
+- **Advisory.** No step changes state; putting the phone down is the right recovery.
+- **Earlier objects are fine.** Anything a step up to the lookahead uses is allowed — the
+  bottle is still in hand after "pick up the bottle". Objects the lookahead will judge are
+  left to its verdict, so one mistake raises one alert.
+- **It must appear.** Something in view since the step began (plus a 2 s grace for the
+  camera settling) is the resting scene, not an action — the bottle standing at home at the
+  start of a run is the last step's state, not a skip.
+- **Held, then rationed.** Six consecutive frames of evidence, the right object not also in
+  hand, and one alert per step and object per 10 s.
+
+`EngineConfig.wrong_object_*` tunes or disables it. Objects no step uses at all are not
+alerted: the engine only knows what the procedure names.
+
+### 7.8 Wrong hand
+
+A step whose `gesture` or `contact` names a `side` raises `wrong_hand` (severity medium)
+when the other hand does it for six frames and the named hand is not doing it too — "Wrong
+hand: use your left hand. Now: Raise your left hand". Advisory, one per step per 10 s, and
+only for what started during the step: the right hand still up from the previous step
+("raise your right hand") is not a mistake. `EngineConfig.wrong_hand_*` tunes or disables
+it. The line is pre-rendered at load, since the step fixes its wording.
 
 ---
 

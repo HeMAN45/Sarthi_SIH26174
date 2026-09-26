@@ -94,30 +94,42 @@ find yourself needing perception to test the engine, the seam has been broken.
 
 ## Current state
 
-**The pipeline runs end to end on a camera.** 270 tests pass; ruff, the import-boundary
+**The pipeline runs end to end on a camera.** 453 tests pass; ruff, the import-boundary
 contract and the offline guard are all green.
 
 Built and working:
 
-- **reasoning** — schema, seven predicates, step state machine, crew skip/override,
-  calibrated abstention, free-float advisory (D-07), golden replay corpus.
+- **reasoning** — schema, nine predicates (incl. body `gesture`, `tilted`, picture-space
+  `moved`, hand `side` on `contact`), step state machine, crew skip/override, calibrated
+  abstention, free-float advisory (D-07), wrong-object and wrong-hand alerts (TRD §7.7–7.8),
+  golden replay corpus.
 - **perception** — `rackframe` (ArUco + homography to rack millimetres, input-frame
   canonicalization), `pose` (YOLO11-pose), `hands` (palm-from-forearm plus geometric
-  contact inference), `detect` (boxes or on-device state classifier), `capture`,
-  and `pipeline` which joins them into event payloads.
+  contact inference), `gestures` (thirteen body actions -- postures and movements --
+  measured in the body's own frame, so they read the same upright, lying or inverted), `detect` (boxes, or an on-device
+  classifier or detector), `capture`, and `pipeline` which joins them into event
+  payloads. Body tracking is on by default and drawn on the feed. Scene procedures get
+  every object in view; presentation procedures every object held up close (TRD §6.2). A
+  detector trained on the device runs *beside* the stock one, never instead of it.
 - **runtime** — SQLite store with migrations, hash-chained telemetry and verifier,
   `session.LiveSession` (the composition root), `voice` (Piper, pre-synthesized,
-  pre-emptible), `videoout` (mp4 + RTSP), `training` (on-device classifier).
+  pre-emptible), `videoout` (mp4 + RTSP), `training` (on-device classifier or
+  detector), `boxes` (stock-detector box proposals for detector training),
+  `experiments` (builder experiments saved as procedure files in `data/experiments/`).
 - **server** — one FastAPI app; live endpoints degrade to 503 without a session.
-- **ui** — React console: Mission, Procedures (library + builder), Models (Classes →
+- **ui** — React console: Mission, Procedures (saved experiments, built-in library,
+  builder with objects and body actions), Models (Classes →
   Capture → Train → Test → Deploy), Archive (history + chain verification). Flat
   engineering-console style, three themes (Graphite default, Slate, Daylight); Geist and
   Lucide bundled, nothing fetched at run time. Camera display mirrored by default.
 - **training** — perception draws its overlay on a copy, so training captures are clean;
   validation is held out; the test stage uses the live acceptance rule; the last model
-  survives a restart. Background-class advice is surfaced before training.
+  survives a restart. Background-class advice is surfaced before training. *Objects*
+  mode trains a detector from proposed boxes with background photos as negatives, so
+  a hand or arm is background by construction (`tests/test_boxes.py`).
 - **procedures** — `drink_water.yaml`: five steps from scene-state classes, one class
-  serving two steps (`tests/test_drink_water.py`).
+  serving two steps; `drink_water_body.yaml`: the same five from contact, gestures and a
+  home region, no training (`tests/test_drink_water.py`).
 - **lifecycle** — Ready → Live → Complete. The camera belongs to a run: off in Ready,
   powered by New run, released by End run (`tests/test_session.py`).
 

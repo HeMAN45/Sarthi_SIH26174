@@ -44,6 +44,26 @@ POSE · VOICE · LINK), mute, the theme menu and shutdown. The bar sheds detail 
 window narrows — key hints, then the procedure name, then labels — and never overflows.
 Old routes (`/experiment`, `/train`, `/sessions`) redirect.
 
+**Body tracking is visible, not implied.** The camera overlay draws the skeleton, a saffron
+ring on each hand, a green line from a hand to what it touches, and the body actions read
+this frame; the Mission meters include a **Body** card (tracked / no one in view / off, live
+gestures, hand-object contacts) and the HUD carries a Body on/off toggle — disabled, with the
+reason, when the loaded procedure's steps need it.
+
+**Procedures** lists *Your experiments* (saved from the builder: Run, Load, Edit, Delete) above
+the built-in library. In the builder's object palette the operator's *trained objects* come
+first, marked, above the stock list. The builder's palette switches between Objects and Body actions (grouped: one hand, both
+hands and body, movements); each step row takes an object and what is done with it (show,
+hold, pour, move), a body action and which hand (either, left, right), plus the operator's
+own wording, with the default wording shown as the placeholder so nothing spoken is a
+surprise. The hand choice is disabled, with the reason, when nothing in the step is one-handed.
+
+**Models** trains in two modes. *Objects* (default) proposes a box around the object in every
+photo with the stock detector and shows them in a review grid — click a wrong one to leave it
+out — so the operator can see exactly what the detector will learn. Boxes found only on the
+closer, low-confidence look carry a *faint* badge: they are usually right, and worth a glance. *Whole scene* is the
+classifier, with its limits stated beside the switch.
+
 The camera is displayed **mirrored** by default, because a webcam facing the operator
 otherwise moves the wrong way; a HUD toggle and `--no-mirror` give the true view. Only the
 picture flips: perception, telemetry and the recording's evidence value are unaffected, and

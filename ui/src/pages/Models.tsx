@@ -28,13 +28,13 @@ const EPOCHS: Record<TrainMode, { value: string; label: string }[]> = {
 const MODE_TEXT: Record<TrainMode, string> = {
   detect:
     "Learns where the object is. Your hand, arm and face fall outside its box, so they are "
-    + "background automatically. The stock detector draws the boxes for you — it works for "
+    + "background automatically. The stock detector draws the boxes for you - it works for "
     + "everyday objects: books, bottles, cups, phones. Your objects join the 80 stock ones and "
     + "stay after a restart. About a minute per epoch on a laptop.",
   classify:
     "Learns what the whole picture looks like. Fast, and good for scenes (someone drinking), but "
-    + "it learns anything that differs between your photo sets — where your arm comes from, "
-    + "whether you sit in frame — so its background must be very varied.",
+    + "it learns anything that differs between your photo sets - where your arm comes from, "
+    + "whether you sit in frame - so its background must be very varied.",
 };
 
 type Tone = "ok" | "alert" | "accent";
@@ -52,7 +52,7 @@ function tipFor(cls: TrainClass): string {
     + "needs photos of your empty hand too.";
 }
 
-/** Teach the system new objects — or object *states* (cap on, cap off) — by
+/** Teach the system new objects - or object *states* (cap on, cap off) - by
  *  showing them to the camera. Classification needs no bounding boxes. */
 export default function Models({
   state, resetSpeech,
@@ -199,7 +199,7 @@ export default function Models({
       saved++;
       setFlashKey((k) => k + 1);
       if (n > 1) {
-        setNote({ tone: "accent", text: `Burst ${i + 1}/${n} — keep moving the object` });
+        setNote({ tone: "accent", text: `Burst ${i + 1}/${n} - keep moving the object` });
         await new Promise((res) => setTimeout(res, 330));
       }
     }
@@ -289,7 +289,7 @@ export default function Models({
         <div>
           <h1 className="page-title">Models</h1>
           <p className="page-desc">
-            Teach SARTHI objects and object <i>states</i> — cap on, cap off — by showing them to the
+            Teach SARTHI objects and object <i>states</i> - cap on, cap off - by showing them to the
             camera. Everything runs on this device; no bounding boxes to draw.
           </p>
         </div>
@@ -298,7 +298,7 @@ export default function Models({
           <div className="eyebrow">Training for</div>
           <select className="input" style={{ marginTop: 6, height: 36 }} value={target}
                   onChange={(e) => setTarget(e.target.value)}>
-            <option value="">Any — one step per class</option>
+            <option value="">Any - one step per class</option>
             {lib.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </div>
@@ -438,7 +438,7 @@ export default function Models({
                         ? <b>Nothing found</b>
                         : <><b>{pred.name}</b> <span style={{ opacity: .8 }}>{pred.conf?.toFixed(2)}</span></>}
                       <div style={{ fontSize: 14, opacity: .85 }}>
-                        {pred.accepted ? "A run would count this — the step would move forward." : `A run would ignore this: ${pred.why}.`}
+                        {pred.accepted ? "A run would count this - the step would move forward." : `A run would ignore this: ${pred.why}.`}
                       </div>
                     </div>
                   </div>
@@ -448,7 +448,7 @@ export default function Models({
               <div className="overlay standby" style={{ padding: 20 }}>
                 <div className="standby-body">
                   <div className="empty-icon" style={{ width: 54, height: 54 }}><CameraOff size={24} /></div>
-                  <div className="standby-text">The camera is off. Turn it on to frame the object — nothing is judged or logged.</div>
+                  <div className="standby-text">The camera is off. Turn it on to frame the object - nothing is judged or logged.</div>
                   <button className="btn btn-primary" onClick={cameraOn}><Power size={16} /> Turn camera on</button>
                 </div>
               </div>
@@ -484,7 +484,7 @@ export default function Models({
               </div>
               {selected && (
                 <Note tone={selected.background ? "caution" : undefined} icon={Lightbulb} style={{ marginTop: 12 }}>
-                  <b className="mono">{selected.name}</b> — {tipFor(selected)}
+                  <b className="mono">{selected.name}</b> - {tipFor(selected)}
                 </Note>
               )}
             </>
@@ -518,7 +518,7 @@ export default function Models({
                 ))}
               </div>
               <div className="faint" style={{ fontSize: 13.5, marginTop: 10, lineHeight: 1.55 }}>
-                Show the model what it gets wrong — your empty hand, a finger, your face — and file each
+                Show the model what it gets wrong - your empty hand, a finger, your face - and file each
                 frame under the right class. Then train again. This is how a model learns what to ignore.
               </div>
             </>
@@ -553,7 +553,7 @@ export default function Models({
                     {suspects > 0 && (
                       <Note tone="caution" style={{ marginTop: 8 }}>
                         {suspects} background photo{suspects > 1 ? "s seem" : " seems"} to
-                        show a {review.label}. {suspects > 1 ? "They are" : "It is"} left out — check in Boxes.
+                        show a {review.label}. {suspects > 1 ? "They are" : "It is"} left out - check in Boxes.
                       </Note>
                     )}
                     <div className="row" style={{ marginTop: 8 }}>
@@ -616,7 +616,7 @@ export default function Models({
                   <span className="eyebrow">Held-out accuracy</span>
                   <span className="spacer" />
                   <span className="mono" style={{ fontWeight: 700 }}>
-                    {report.accuracy == null ? "—" : `${Math.round(report.accuracy * 100)}%`}
+                    {report.accuracy == null ? "-" : `${Math.round(report.accuracy * 100)}%`}
                   </span>
                 </div>
                 {Object.entries(report.per_class).map(([name, v]) => (
@@ -731,7 +731,7 @@ function BoxGallery({
             {names.map((name) => {
               const off = excluded.has(`${cls}/${name}`);
               return (
-                <button key={name} onClick={() => onToggle(cls, name)} title={off ? "Left out — click to use" : "Used — click to leave out"}
+                <button key={name} onClick={() => onToggle(cls, name)} title={off ? "Left out - click to use" : "Used - click to leave out"}
                         style={{ position: "relative", padding: 0, border: `2px solid ${off ? "var(--alert-line)" : "transparent"}`,
                                  borderRadius: 6, overflow: "hidden", cursor: "pointer", background: "var(--well)", opacity: off ? 0.45 : 1 }}>
                   <img src={api.boxImage(cls, name)} alt={name} loading="lazy" style={{ display: "block", width: "100%" }} />

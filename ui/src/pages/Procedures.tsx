@@ -14,9 +14,10 @@ import { Badge, Empty, ErrorNote, Note, PanelHead, Seg } from "../components/ui"
 type Pending = { id: string; start: boolean; missing: string[] };
 type Editing = { id: string; name: string; steps: StepSpec[] };
 
-/** "PROC-A — Nested sample retrieval" → "PROC-A". */
+/** "PROC-A - Nested sample retrieval" → "PROC-A". */
 function codeOf(e: LibraryEntry): string {
-  const m = e.title.match(/^([A-Z0-9][A-Z0-9_-]*)\s+[—-]\s+/);
+  // U+2014, the long dash, keeps reading experiments saved before headers used a hyphen.
+  const m = e.title.match(/^([A-Z0-9][A-Z0-9_-]*)\s+[\u2014-]\s+/);
   return m ? m[1] : e.id.toUpperCase();
 }
 
@@ -87,7 +88,7 @@ export default function Procedures({
           <h1 className="page-title">Procedures</h1>
           <p className="page-desc">
             Build an experiment from objects and body actions, save it under a name, and run it
-            again any time. Every experiment is a procedure file — the same kind SARTHI ships with.
+            again any time. Every experiment is a procedure file - the same kind SARTHI ships with.
           </p>
         </div>
         <span className="spacer" />
@@ -108,7 +109,7 @@ export default function Procedures({
       )}
       {live && (
         <Note tone="accent" style={{ marginBottom: 16 }}>
-          A run is live. Running or loading another experiment seals it first — its record stays in the Archive.
+          A run is live. Running or loading another experiment seals it first - its record stays in the Archive.
         </Note>
       )}
 
@@ -139,7 +140,7 @@ export default function Procedures({
                  onSaved={(name, why) => {
                    setFlash(why
                      ? { tone: "alert", text: `Saved “${name}”, but it did not start: ${why}` }
-                     : { tone: "ok", text: `Saved “${name}”. It is in Your experiments — run it any time, even after a restart.` });
+                     : { tone: "ok", text: `Saved “${name}”. It is in Your experiments - run it any time, even after a restart.` });
                    setEditing(null);
                    refresh();
                  }} />
@@ -414,7 +415,7 @@ function Builder({
               ))}
               <div className="faint" style={{ fontSize: 13, lineHeight: 1.55, marginTop: 4 }}>
                 Read from the body's own posture, so they work however the person is turned. In a
-                step, pick the hand (left or right) and what is done with the object — show, hold,
+                step, pick the hand (left or right) and what is done with the object - show, hold,
                 pour or move. “Hand to face” holding the bottle is drinking.
               </div>
             </div>

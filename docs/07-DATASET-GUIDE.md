@@ -1,4 +1,4 @@
-# Dataset guide — props, footage and labels
+# Dataset guide - props, footage and labels
 
 The trained detector is the PS deliverable. Everything downstream of it is
 built and tested; this document is the part that needs hands, cardboard and an
@@ -12,7 +12,7 @@ today.
 ## 1. The vocabulary is not a choice
 
 Nine detector classes, derived from `procedures/proc_a.yaml` and
-`procedures/proc_b.yaml` — never hardcoded, because a second source of truth
+`procedures/proc_b.yaml` - never hardcoded, because a second source of truth
 drifts and the failure shows up at step seven in front of a jury.
 
 ```bash
@@ -32,7 +32,7 @@ uv run orbital-har dataset init --root datasets/bas
 | 8 | `yellow_box_open` | yellow_box | state, tethered |
 
 Object **states are separate classes** (invariant #8). There is no second
-classifier stage deciding open versus closed — the detector decides, which is
+classifier stage deciding open versus closed - the detector decides, which is
 why open and closed must be photographed as if they were different objects.
 
 > The docs elsewhere say "11-class vocabulary". That counts `hand` and `glove`,
@@ -70,8 +70,8 @@ shaped boxes that differ only in colour are the pair the model will confuse.
 
 ## 3. Shot list
 
-Aim for **300+ instances per class** — `dataset stats` flags anything under.
-That is roughly 20–30 minutes of footage sampled at a few frames per second,
+Aim for **300+ instances per class** - `dataset stats` flags anything under.
+That is roughly 20-30 minutes of footage sampled at a few frames per second,
 not 300 hand-taken photographs.
 
 Record in **takes**, and name frames `take03_0147.jpg`. The splitter groups by
@@ -82,17 +82,17 @@ validation mAP into a measure of memorisation.
 
 Cover, in separate takes:
 
-1. **Baseline** — the full PROC-A sequence, normal lighting, camera upright.
-2. **Orientation** — the same run with the camera rotated 90°, 180°, 270°.
+1. **Baseline** - the full PROC-A sequence, normal lighting, camera upright.
+2. **Orientation** - the same run with the camera rotated 90°, 180°, 270°.
    Training augments rotation to ±180°, but real rotated footage is what proves
    it. This is the PS's orientation clause.
-3. **Lighting** — bright, dim, and one side-lit take with hard shadows.
-4. **Occlusion** — hands and forearms crossing the props repeatedly.
-5. **States** — each box opened and closed slowly, held at partial angles.
+3. **Lighting** - bright, dim, and one side-lit take with hard shadows.
+4. **Occlusion** - hands and forearms crossing the props repeatedly.
+5. **States** - each box opened and closed slowly, held at partial angles.
    Partial opening is where the two state classes actually compete; a model
    trained only on fully-open and fully-shut boxes has no idea what to do
    halfway.
-6. **Negatives** — the empty rack, and the props off to one side. Frames with
+6. **Negatives** - the empty rack, and the props off to one side. Frames with
    nothing to detect are valid training data and reduce false positives.
 
 Deliberately include the hard cases. The engine's abstention path
@@ -134,7 +134,7 @@ uv run orbital-har export runs/bas/weights/best.pt --format onnx
 
 `.autolabel.json` records which frames were machine-labelled and at what
 confidence. It is written with `"reviewed": false`. Flip it by hand once a
-person has actually been through them — an unreviewed dataset that looks
+person has actually been through them - an unreviewed dataset that looks
 reviewed is how a model gets trained on its own mistakes.
 
 ---
@@ -149,7 +149,7 @@ Three numbers, and a judge will ask for all three:
   through the real engine. A detector with excellent mAP that still calls a
   skipped step complete has failed at the actual job.
 - **False alerts per 10 minutes.** PRD NFR-04. This is the one metric that
-  cannot be traded away for a better mean — false alerts erode crew trust, and
+  cannot be traded away for a better mean - false alerts erode crew trust, and
   a muted assistant has no value.
 
 `orbital-har eval` prints all three, and `--save` writes the model and its

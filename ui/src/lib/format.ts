@@ -19,7 +19,7 @@ export function fmtClock(seconds: number | null | undefined): string {
 
 /** Human duration: 42s · 3m 12s · 1h 04m. */
 export function fmtDuration(seconds: number | null | undefined): string {
-  if (seconds == null || !Number.isFinite(seconds)) return "—";
+  if (seconds == null || !Number.isFinite(seconds)) return "-";
   const s = Math.max(0, Math.round(seconds));
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
@@ -29,7 +29,7 @@ export function fmtDuration(seconds: number | null | undefined): string {
 
 /** Step timing keeps a decimal under a minute: 12.4s reads better than 12s. */
 export function fmtStep(seconds: number | null | undefined): string {
-  if (seconds == null || !Number.isFinite(seconds)) return "—";
+  if (seconds == null || !Number.isFinite(seconds)) return "-";
   return seconds < 60 ? `${seconds.toFixed(1)}s` : fmtDuration(seconds);
 }
 
@@ -43,7 +43,7 @@ const dateFmt = new Intl.DateTimeFormat("en-GB", {
 });
 
 export function fmtWhen(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : dateFmt.format(d);
 }

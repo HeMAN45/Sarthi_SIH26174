@@ -324,7 +324,7 @@ def cmd_train(args: argparse.Namespace, console: Console) -> int:
     console.rule("[bold]Training[/]")
     console.print(config.describe())
     if not config.data.exists():
-        console.print(f"[bold red]error:[/] {config.data} not found — run 'dataset init'")
+        console.print(f"[bold red]error:[/] {config.data} not found - run 'dataset init'")
         return 2
     best = train(config)
     console.print(f"[green]done[/] {best}")

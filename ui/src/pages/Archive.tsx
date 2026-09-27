@@ -123,7 +123,7 @@ export default function Archive() {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div className="mono" style={{ fontSize: 13, color: "var(--ink-2)" }}>
-                      {r.duration_ms != null ? fmtDuration(r.duration_ms / 1000) : "—"}
+                      {r.duration_ms != null ? fmtDuration(r.duration_ms / 1000) : "-"}
                     </div>
                     {!!r.alert_count && (
                       <div className="mono" style={{ fontSize: 12.5, color: "var(--caution)", marginTop: 4 }}>
@@ -190,14 +190,14 @@ function Detail({ d, check, onVerify }: { d: SessionDetail; check: Check; onVeri
 
         <div className="statgrid" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
           <div><div className="stat-label"><Clock3 size={11} style={{ verticalAlign: "-1px" }} /> Duration</div>
-               <div className="stat-value">{s.duration_ms != null ? fmtDuration(s.duration_ms / 1000) : "—"}</div></div>
+               <div className="stat-value">{s.duration_ms != null ? fmtDuration(s.duration_ms / 1000) : "-"}</div></div>
           <div><div className="stat-label">Verified</div>
                <div className="stat-value" style={{ color: "var(--ok)" }}>{s.steps_complete ?? 0}/{total}</div></div>
           <div><div className="stat-label">Skipped · out of order</div>
                <div className="stat-value" style={{ color: (s.steps_skipped || s.steps_out_of_order) ? "var(--alert)" : undefined }}>
                  {s.steps_skipped ?? 0} · {s.steps_out_of_order ?? 0}</div></div>
           <div><div className="stat-label">Telemetry</div>
-               <div className="stat-value">{d.chain ? fmtBytes(d.chain.bytes_written) : "—"}</div></div>
+               <div className="stat-value">{d.chain ? fmtBytes(d.chain.bytes_written) : "-"}</div></div>
         </div>
       </div>
 
@@ -214,8 +214,8 @@ function Detail({ d, check, onVerify }: { d: SessionDetail; check: Check; onVeri
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 620, fontSize: 16 }}>
-              {check.state === "ok" ? "Chain intact — nothing was altered"
-                : check.state === "bad" ? (check.seq != null ? `Tampered — record #${check.seq} was altered` : "Verification failed")
+              {check.state === "ok" ? "Chain intact - nothing was altered"
+                : check.state === "bad" ? (check.seq != null ? `Tampered - record #${check.seq} was altered` : "Verification failed")
                 : check.state === "checking" ? "Re-walking the hash chain…"
                 : "Tamper-evident telemetry"}
             </div>
@@ -223,7 +223,7 @@ function Detail({ d, check, onVerify }: { d: SessionDetail; check: Check; onVeri
               {check.state === "ok" ? `${check.records} records re-hashed from genesis; every link matches.`
                 : check.state === "bad" ? (check.error ?? "Every record after the altered one is now unverifiable.")
                 : d.chain ? `${d.chain.record_count} records · head `
-                : s.status === "running" ? "Still being written — the chain is sealed when the run ends."
+                : s.status === "running" ? "Still being written - the chain is sealed when the run ends."
                 : "No chain was sealed for this run."}
               {check.state !== "ok" && check.state !== "bad" && d.chain && (
                 <span className="mono muted">{head}…{tail}</span>

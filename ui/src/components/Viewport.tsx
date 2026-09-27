@@ -25,8 +25,8 @@ export function MirrorToggle({ s }: { s: LiveState }) {
   const on = s.camera.mirror;
   return (
     <button className={`hud-tag${on ? " on" : ""}`} onClick={() => api.mirror(!on)}
-            title={on ? "Mirrored like a selfie — click for the camera's true view"
-                      : "True camera view — click to mirror it like a selfie"}>
+            title={on ? "Mirrored like a selfie - click for the camera's true view"
+                      : "True camera view - click to mirror it like a selfie"}>
       <MirrorRectangular size={15} /> {on ? "Mirror on" : "Mirror off"}
     </button>
   );
@@ -76,7 +76,7 @@ export function Feed({ s }: { s: LiveState }) {
         <button className={`hud-tag${p.body.enabled ? " on" : ""}`} disabled={p.body.forced}
                 onClick={() => api.body(!p.body.enabled)}
                 title={p.body.forced ? "This procedure's steps need body tracking"
-                  : p.body.enabled ? "Body tracking on — click to save CPU" : "Body tracking off — click to turn on"}>
+                  : p.body.enabled ? "Body tracking on - click to save CPU" : "Body tracking off - click to turn on"}>
           <PersonStanding size={15} /> Body {p.body.enabled ? "on" : "off"}
         </button>
         <MirrorToggle s={s} />
@@ -124,9 +124,9 @@ export function Standby({
         <div className="preflight">
           <Preflight label="Procedure" tone="ok" value={`${s.steps.length} steps · ${s.procedure_id}`} />
           <Preflight label="Detector" tone="ok" value={detectorLabel(p.detector, p.trained)} />
-          <Preflight label="Rack frame" value={p.rack_required ? "Required — locks when live" : "Not needed"} />
+          <Preflight label="Rack frame" value={p.rack_required ? "Required - locks when live" : "Not needed"} />
           <Preflight label="Body tracking" tone={!p.body.enabled ? "" : p.pose_ok ? "ok" : "bad"}
-                     value={!p.body.enabled ? "Off — pose, hands and gestures paused"
+                     value={!p.body.enabled ? "Off - pose, hands and gestures paused"
                        : p.pose_ok ? `YOLO11-pose · hands · gestures${p.body.forced ? " · needed by this procedure" : ""}`
                        : `Offline: ${p.pose_error ?? "unavailable"}`} />
           <Preflight label="Voice" tone={s.voice.available ? "ok" : "warn"}

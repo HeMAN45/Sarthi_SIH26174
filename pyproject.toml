@@ -75,6 +75,6 @@ modules = ["orbital_har.perception", "orbital_har.reasoning"]
 [tool.ruff.lint.per-file-ignores]
 # Demo/launcher scripts: long inline lines and UI glyphs (＋ × → ·) are intentional.
 "scripts/*.py" = ["E501", "RUF001"]
-# B008 is FastAPI's File()/Form()/Depends() idiom — a call in a default argument
+# B008 is FastAPI's File()/Form()/Depends() idiom - a call in a default argument
 # is how the framework declares parameter sources, not an accident.
 "src/orbital_har/server/app.py" = ["B008"]

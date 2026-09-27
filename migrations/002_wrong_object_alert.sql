@@ -1,4 +1,4 @@
--- 002 — the wrong-object alert
+-- 002 - the wrong-object alert
 --
 -- The engine now alerts when the operator picks up an object that only a later
 -- step uses (AlertKind.WRONG_OBJECT). SQLite cannot alter a CHECK constraint,

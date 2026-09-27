@@ -3,7 +3,7 @@
 The PS deliverable is a model that runs on an offline standalone system, so the
 export path has to be exercised, not assumed. ONNX is the portable baseline and
 works everywhere; TensorRT is the Jetson path and can only be built on the
-device it will run on — a TensorRT engine is not portable between machines or
+device it will run on - a TensorRT engine is not portable between machines or
 even between driver versions, which is exactly the kind of thing that is
 discovered the night before a demo.
 """

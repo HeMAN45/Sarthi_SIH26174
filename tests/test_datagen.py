@@ -1,7 +1,7 @@
 """Dataset building, labelling and evaluation.
 
 No footage and no model required: the corpus is synthesised, the detector is
-stubbed, and the step/calibration metrics run against the golden fixtures — the
+stubbed, and the step/calibration metrics run against the golden fixtures - the
 same ones that gate the reasoning layer.
 """
 

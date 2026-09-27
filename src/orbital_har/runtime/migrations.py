@@ -1,7 +1,7 @@
 """Schema migration runner.
 
 Applies numbered SQL files from the ``migrations/`` directory in order.
-No ORM, no Alembic — the schema is small enough that hand-written SQL is
+No ORM, no Alembic - the schema is small enough that hand-written SQL is
 clearer (docs/05-BACKEND-SCHEMA.md §7).
 
 Forward-only. Breaking a migration during development is resolved by deleting

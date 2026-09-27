@@ -24,7 +24,7 @@ function verdictOf(s: LiveState): Verdict {
              sub: `${parts.join(" · ")}. Each one raised an alert and is on the record.` };
   }
   const at = s.steps.findIndex((x) => !meta(x.state).done);
-  const where = at >= 0 ? `Stopped at step ${at + 1} of ${total} — ${s.steps[at].name}.` : "";
+  const where = at >= 0 ? `Stopped at step ${at + 1} of ${total} - ${s.steps[at].name}.` : "";
   return { tone: "neutral", title: "Run ended early",
            sub: `${where} The telemetry up to that point is sealed and verifiable.` };
 }
@@ -32,7 +32,7 @@ function verdictOf(s: LiveState): Verdict {
 const TONE_COLOR = { ok: "var(--ok)", caution: "var(--caution)", neutral: "var(--accent)" } as const;
 
 /** The completion screen: what happened, how long each step took, and the
- *  evidence of record — a sealed hash chain and the downlink it saved. */
+ *  evidence of record - a sealed hash chain and the downlink it saved. */
 export default function Debrief({
   s, onNewRun, onEnd, onHide,
 }: { s: LiveState; onNewRun: () => void; onEnd?: () => void; onHide: () => void }) {

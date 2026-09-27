@@ -1,4 +1,4 @@
-"""Tests for runtime.migrations — schema runner."""
+"""Tests for runtime.migrations - schema runner."""
 
 from __future__ import annotations
 

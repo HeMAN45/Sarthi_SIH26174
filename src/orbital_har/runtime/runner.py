@@ -118,7 +118,7 @@ class SessionRunner:
         which also owns voice, recording and HTTP state. This is the minimal
         one: camera to bus to engine to telemetry, with nothing watching a
         screen. That is the shape the edge device actually runs in, and it is
-        the shape that proves the seam holds — perception publishes, the engine
+        the shape that proves the seam holds - perception publishes, the engine
         consumes, and neither knows the other exists.
 
         Ends on camera loss, ``max_seconds``, or ``stop()`` returning True. The

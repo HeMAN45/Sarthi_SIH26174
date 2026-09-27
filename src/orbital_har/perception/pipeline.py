@@ -2,7 +2,7 @@
 
 This is the producing half of the event-bus seam. It localises the rack,
 canonicalizes the input frame, detects objects, estimates pose, derives hands
-and infers contact — and emits all of it as event payloads. It has no idea what
+and infers contact - and emits all of it as event payloads. It has no idea what
 a procedure is, which step is active, or what any of this will be judged
 against. That ignorance is the point: it is what lets the reasoning layer be
 built and regression-tested with no camera present.
@@ -26,7 +26,7 @@ from orbital_har.perception.hands import ContactInferrer, HandPoint, HandTracker
 from orbital_har.perception.pose import PoseEstimator, PoseObservation
 from orbital_har.perception.rackframe import RackFrame, RackLayout, RackObservation
 
-#: (source, event type, payload) — everything observed about one frame.
+#: (source, event type, payload) - everything observed about one frame.
 Emission = tuple[str, str, dict[str, Any]]
 
 

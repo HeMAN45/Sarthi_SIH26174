@@ -165,8 +165,8 @@ function Hero({
   // Degradation is announced, never silent (invariant #10).
   const degraded: string[] = [];
   if (phase === "live" && s.camera.state === "live") {
-    if (p.rack_required && !p.rack_locked) degraded.push("Rack not locked — positions unavailable");
-    if (p.pose_required && !p.pose_ok) degraded.push("Pose offline — contact steps cannot verify");
+    if (p.rack_required && !p.rack_locked) degraded.push("Rack not locked - positions unavailable");
+    if (p.pose_required && !p.pose_ok) degraded.push("Pose offline - contact steps cannot verify");
   }
 
   const eyebrow = complete ? "Procedure complete"
@@ -218,7 +218,7 @@ function Hero({
             <span className="eyebrow">Evidence confidence</span>
             <span className="spacer" />
             <span className="trace-value" style={{ color: confColor }}>
-              {conf == null ? "—" : conf.toFixed(2)}
+              {conf == null ? "-" : conf.toFixed(2)}
             </span>
           </div>
           <Sparkline values={trace} height={52} color={confColor}

@@ -7,14 +7,14 @@ This is the path the trained BAS-prop model will take. A detector trained on
 this device runs *beside* the stock one, so the operator's own objects join
 the 80 stock ones instead of replacing them.
 
-*Classification.* A whole presented object is classified instead — which is what
+*Classification.* A whole presented object is classified instead - which is what
 makes "just add pictures" training work, and how object *states* (open vs closed)
 are captured without any bounding boxes.
 
 The classifier path needs one guard that the box path does not. A softmax always
 returns *some* class: it can never say "nothing here". Without a negative class a
 covered lens produces a confident wrong answer and completes steps. Hence the
-mandatory ``background`` class, plus a confidence **and** margin gate — the
+mandatory ``background`` class, plus a confidence **and** margin gate - the
 50/50 predictions seen on junk input are exactly the ones to throw away.
 
 Nothing here may import from ``orbital_har.reasoning``.
@@ -142,8 +142,8 @@ def _edit_distance(a: str, b: str) -> int:
 def is_background(name: str) -> bool:
     """True for the negative class, tolerating typos like 'backgraound'.
 
-    Getting this wrong silently breaks the whole model — the class stops acting
-    as the "nothing here" escape hatch — so match generously. No real object
+    Getting this wrong silently breaks the whole model - the class stops acting
+    as the "nothing here" escape hatch - so match generously. No real object
     name lands within two edits of 'background'.
     """
     n = name.strip().lower().replace(" ", "_").replace("-", "_")
@@ -202,7 +202,7 @@ class Candidate:
 class DetectionResult:
     #: Detection payload dicts, ready for a ``detection`` event.
     objects: list[dict[str, Any]] = field(default_factory=list)
-    #: Everything seen, for the overlay — including what was rejected and why.
+    #: Everything seen, for the overlay - including what was rejected and why.
     candidates: list[Candidate] = field(default_factory=list)
     #: Classifier-mode commentary, e.g. "ignored: ambiguous (margin 0.04)".
     note: str = ""

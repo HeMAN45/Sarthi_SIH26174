@@ -29,7 +29,7 @@ function systems(s: LiveState | null, connected: boolean): Sys[] {
     out.push({
       key: "rack", label: "RACK",
       tone: !camLive ? "off" : p.rack_locked ? "ok" : "bad",
-      title: p.rack_locked ? "Rack frame locked" : "Rack not locked — no rack-frame positions",
+      title: p.rack_locked ? "Rack frame locked" : "Rack not locked - no rack-frame positions",
     });
   }
   if (p?.pose_required) {
@@ -44,12 +44,12 @@ function systems(s: LiveState | null, connected: boolean): Sys[] {
     tone: !s ? "off" : s.voice.available ? "ok" : "warn",
     title: s?.voice.available
       ? `On-device voice (${s.voice.model})`
-      : `No on-device voice — this browser speaks instead${s?.voice.reason ? ` (${s.voice.reason})` : ""}`,
+      : `No on-device voice - this browser speaks instead${s?.voice.reason ? ` (${s.voice.reason})` : ""}`,
   });
   out.push({
     key: "link", label: "LINK",
     tone: connected ? "ok" : "bad",
-    title: connected ? "Connected to the supervisor" : "Supervisor unreachable — reconnecting",
+    title: connected ? "Connected to the supervisor" : "Supervisor unreachable - reconnecting",
   });
   return out;
 }

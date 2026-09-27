@@ -1,4 +1,4 @@
-# DEMO-LIVE — camera demo procedure (mentor demo, not a real BAS experiment)
+# DEMO-LIVE - camera demo procedure (mentor demo, not a real BAS experiment)
 #
 # Uses a general pretrained detector as a STAND-IN for the trained BAS-prop
 # model. Object "classes" here are COCO class names so a live webcam demo can

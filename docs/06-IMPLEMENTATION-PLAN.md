@@ -20,7 +20,7 @@ Six members, balanced across ML, backend, and frontend.
 | **R6** Integration lead | Demo, docs, submission, CI, cross-cutting | repo-wide |
 
 R6 floats to whichever workstream is blocking. R6 does not own a critical-path module by
-design — the integrator must stay available.
+design - the integrator must stay available.
 
 ---
 
@@ -28,12 +28,12 @@ design — the integrator must stay available.
 
 | ID | Milestone | Window |
 |---|---|---|
-| **M0** | Idea submitted + technical spike proven | Sep 20 – 30 |
-| **M1** | Foundations: schema, bus, state machine, replay | Oct 1 – 14 |
-| **M2** | Perception v1 integrated, PROC-A runs end-to-end | Oct 15 – 28 |
-| **M3** | Voice, telemetry, video I/O, both dashboard views | Oct 29 – Nov 11 |
-| **M4** | Differentiators: orientation, hot-swap, synthetic data | Nov 12 – 25 |
-| **M5** | Edge port, hardening, calibration, soak | Nov 26 – Dec 9 |
+| **M0** | Idea submitted + technical spike proven | Sep 20 - 30 |
+| **M1** | Foundations: schema, bus, state machine, replay | Oct 1 - 14 |
+| **M2** | Perception v1 integrated, PROC-A runs end-to-end | Oct 15 - 28 |
+| **M3** | Voice, telemetry, video I/O, both dashboard views | Oct 29 - Nov 11 |
+| **M4** | Differentiators: orientation, hot-swap, synthetic data | Nov 12 - 25 |
+| **M5** | Edge port, hardening, calibration, soak | Nov 26 - Dec 9 |
 | **M6** | Demo rehearsal and buffer | Dec 10 → finale |
 
 The SIH internal hackathon and national shortlist fall inside this window on dates not yet
@@ -42,33 +42,33 @@ without disrupting the plan.
 
 ---
 
-## 3. M0 — Idea submission and spike · Sep 20–30
+## 3. M0 - Idea submission and spike · Sep 20-30
 
 **Goal.** Get shortlisted, and prove the riskiest assumption cheaply.
 
-Two parallel tracks. Do not serialise these — the deadline is hard.
+Two parallel tracks. Do not serialise these - the deadline is hard.
 
-### Track A — submission (R6 lead, R1 support)
+### Track A - submission (R6 lead, R1 support)
 
 | ID | Task | Owner |
 |---|---|---|
-| A-01 | Draft idea write-up from PRD §1–2 and differentiators D-01…D-08 | R6 |
+| A-01 | Draft idea write-up from PRD §1-2 and differentiators D-01…D-08 | R6 |
 | A-02 | Produce architecture diagram for the submission | R6 |
 | A-03 | Write the downlink-saving argument with worked numbers | R1 |
 | A-04 | Internal review, revise | all |
 | A-05 | **Submit before 30 Sep** | R6 |
 
-### Track B — spike (R3 lead)
+### Track B - spike (R3 lead)
 
 | ID | Task | Owner | Depends |
 |---|---|---|---|
-| B-01 | Repo init, `uv`, ruff, pytest, CI skeleton | R3 | — |
+| B-01 | Repo init, `uv`, ruff, pytest, CI skeleton | R3 | - |
 | B-02 | Pydantic procedure schema, PROC-A encoded | R3 | B-01 |
 | B-03 | Hand-written `events.jsonl` fixture | R3 | B-02 |
 | B-04 | Predicate evaluators: `detect`, `contact`, `near` | R3 | B-02 |
 | B-05 | State machine: pending → active → complete + skip | R3 | B-04 |
 | B-06 | CLI replay printing verdicts to terminal | R3 | B-05 |
-| B-07 | Buy prop kit, build rack board, print ArUco | R2 | — |
+| B-07 | Buy prop kit, build rack board, print ArUco | R2 | - |
 | B-08 | Record first 10 PROC-A runs | R2 | B-07 |
 
 **Definition of done.** Idea submitted. `orbital-har replay --fixture` prints
@@ -77,7 +77,7 @@ file. Ten runs recorded. No camera, no models, no ML involved in the spike.
 
 ---
 
-## 4. M1 — Foundations · Oct 1–14
+## 4. M1 - Foundations · Oct 1-14
 
 **Goal.** The entire reasoning half of the system, complete and tested, before perception
 exists.
@@ -109,7 +109,7 @@ no camera and no ML.**
 
 ---
 
-## 5. M2 — Perception v1 · Oct 15–28
+## 5. M2 - Perception v1 · Oct 15-28
 
 **Goal.** Replace the mocked stream with real vision.
 
@@ -134,7 +134,7 @@ an internal hackathon round.
 
 ---
 
-## 6. M3 — Runtime and dashboard · Oct 29 – Nov 11
+## 6. M3 - Runtime and dashboard · Oct 29 - Nov 11
 
 **Goal.** Every PS deliverable satisfied. No differentiators yet.
 
@@ -159,7 +159,7 @@ matrix (§10) fully green. Telemetry under 50 KB/hour, measured.
 
 ---
 
-## 7. M4 — Differentiators · Nov 12–25
+## 7. M4 - Differentiators · Nov 12-25
 
 **Goal.** The things that win, not merely satisfy.
 
@@ -169,7 +169,7 @@ matrix (§10) fully green. Telemetry under 50 KB/hour, measured.
 | F-02 | Input-frame canonicalization ahead of inference | R1 | F-01 | D-01 |
 | F-03 | Rotation augmentation, retrain, validate at ±90°/180° | R1, R2 | F-02 | D-01 |
 | F-04 | Raw/canonical toggle in the video pane | R5 | F-02 | D-01 |
-| F-05 | Marker-loss degradation and recovery | R1 | F-01 | — |
+| F-05 | Marker-loss degradation and recovery | R1 | F-01 | - |
 | F-06 | Procedure hot-swap endpoint + vocabulary check | R3 | C-12 | D-02 |
 | F-07 | Procedure loader UI with validation errors | R5 | F-06 | D-02 |
 | F-08 | Validate PROC-B live with zero retraining | all | F-06 | D-02 |
@@ -186,11 +186,11 @@ order, offline.
 
 ---
 
-## 8. M5 — Edge and hardening · Nov 26 – Dec 9
+## 8. M5 - Edge and hardening · Nov 26 - Dec 9
 
 | ID | Task | Owner |
 |---|---|---|
-| G-01 | **Edge hardware buy decision — gate, see §9** | R6 |
+| G-01 | **Edge hardware buy decision - gate, see §9** | R6 |
 | G-02 | ONNX export, TensorRT FP16 engine build | R1 |
 | G-03 | Edge port, dependency resolution, camera on ARM | R1, R4 |
 | G-04 | Measure FPS, RAM, watts on edge; publish figures | R1 |
@@ -221,8 +221,8 @@ calls proven by test.
 | USB speaker | Voice alerts audible in a hall | Nov 15 |
 | Second display | Dual-view demo | Nov 15 |
 
-The prop kit is the true critical path. Everything downstream — labelling, training,
-golden corpus, every differentiator — waits on footage, and footage waits on props. **Buy
+The prop kit is the true critical path. Everything downstream - labelling, training,
+golden corpus, every differentiator - waits on footage, and footage waits on props. **Buy
 them this week.**
 
 If the Jetson is not purchased, M5 still runs on DEV. The architecture does not change; only
@@ -236,7 +236,7 @@ Trunk-based with short-lived branches: `feat/<area>-<slug>`. Every PR runs ruff,
 the import-boundary rule, and the offline check. Golden replay tests must pass before any
 merge that touches `reasoning/`.
 
-Conventional commits. Weekly demo every Friday — something runs, or the week is flagged red.
+Conventional commits. Weekly demo every Friday - something runs, or the week is flagged red.
 Blockers raised same-day, never held to the weekly.
 
 Docs in `docs/` are the contract. **A code change that contradicts a doc must update the
@@ -267,10 +267,10 @@ If behind schedule, cut in this order. Never cut upward.
 
 1. ASR voice commands (F-15)
 2. Free-float advisory (F-14)
-3. Replay player UI — keep the CLI (E-10)
-4. Session history UI — keep the API (E-09)
-5. PROC-B live load — keep the architecture and explain it (F-08)
-6. Edge port — publish DEV numbers instead (G-02…G-04)
+3. Replay player UI - keep the CLI (E-10)
+4. Session history UI - keep the API (E-09)
+5. PROC-B live load - keep the architecture and explain it (F-08)
+6. Edge port - publish DEV numbers instead (G-02…G-04)
 
 **Never cut:** the state machine, abstention, telemetry hash chain, voice alerts, the crew
 HUD, or orientation canonicalization. Those are the product.
@@ -281,13 +281,13 @@ HUD, or orientation canonicalization. Those are the product.
 
 ### The 90-second version, for a rotating judge
 
-1. **Framing (15 s)** — communication delay and downlink budget make ground supervision
+1. **Framing (15 s)** - communication delay and downlink budget make ground supervision
    impossible. The system supervises the procedure on board.
-2. **Live run (40 s)** — operator performs PROC-A. Deliberately skip step 4. The voice
+2. **Live run (40 s)** - operator performs PROC-A. Deliberately skip step 4. The voice
    alert fires and the banner appears.
-3. **The inversion (20 s)** — operator turns upside down, camera rotates. Toggle raw versus
+3. **The inversion (20 s)** - operator turns upside down, camera rotates. Toggle raw versus
    canonical. Tracking never breaks.
-4. **The number (15 s)** — point at the downlink meter. State the ratio.
+4. **The number (15 s)** - point at the downlink meter. State the ratio.
 
 ### The full fifteen-minute version
 
@@ -299,7 +299,7 @@ show the Blender pipeline generating labelled frames on demand.
 
 Three full rehearsals in M6, at least one on unfamiliar hardware and one with the network
 physically disconnected. Every team member must be able to deliver the 90-second version
-alone — judges arrive unannounced and whoever is standing there has to carry it.
+alone - judges arrive unannounced and whoever is standing there has to carry it.
 
 ---
 

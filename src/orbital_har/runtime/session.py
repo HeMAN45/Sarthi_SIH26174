@@ -1,4 +1,4 @@
-"""Live session orchestration — where the two halves are joined.
+"""Live session orchestration - where the two halves are joined.
 
 ``perception`` produces observations and knows nothing about procedures.
 ``reasoning`` consumes observations and knows nothing about cameras. Neither
@@ -68,7 +68,7 @@ def make_engine(proc: Procedure, mode: str = "clean") -> Engine:
 
 
 def perception_needs(proc: Procedure) -> tuple[bool, bool]:
-    """(rack, pose) — what a procedure's predicates actually require.
+    """(rack, pose) - what a procedure's predicates actually require.
 
     Turning these on unconditionally would cost a pose inference per frame on a
     procedure that only says "detect the bottle". Reading it off the predicates
@@ -92,7 +92,7 @@ def voice_lines(proc: Procedure) -> list[str]:
     The alert phrasings are duplicated from the engine on purpose: a
     pre-synthesized line only helps if it matches the string the engine will
     actually emit, character for character. The out-of-order alert names two
-    steps and is combinatorial, so it is left to synthesize on demand — it is
+    steps and is combinatorial, so it is left to synthesize on demand - it is
     also the rarest.
     """
     lines: list[str] = []
@@ -151,7 +151,7 @@ def procedure_rows(proc: Procedure) -> list[dict[str, Any]]:
 class SessionLog:
     """One supervised run: hash-chained telemetry + SQLite rows + video.
 
-    This is PS bullet 4 — the timestamped, structured, lightweight record of
+    This is PS bullet 4 - the timestamped, structured, lightweight record of
     what was actually done. It is append-only and tamper-evident; the chain can
     be re-verified at any time from the dashboard.
     """
@@ -410,7 +410,7 @@ class LiveSession:
 
         Idempotent. Anything that ends supervision must call this, or the
         session stays 'running' in SQLite forever and the telemetry chain is
-        never sealed — which is exactly what Ctrl+C used to do.
+        never sealed - which is exactly what Ctrl+C used to do.
         """
         if self.log is not None and not self.log.closed:
             self.log.close(self.engine)
@@ -807,7 +807,7 @@ class LiveSession:
                     self._raw = raw_frame
 
             # A camera paces us naturally, but a missing or stalled one does
-            # not — and an uncapped loop redrawing a placeholder will happily
+            # not - and an uncapped loop redrawing a placeholder will happily
             # burn a core at several hundred hertz.
             spare = LOOP_PERIOD_S - (time.time() - now)
             if spare > 0:

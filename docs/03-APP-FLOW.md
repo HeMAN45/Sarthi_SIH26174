@@ -1,4 +1,4 @@
-# App Flow — Application Flow
+# App Flow - Application Flow
 
 **Project:** ORBITAL-HAR · SIH26174 · Team Hashira
 **Version:** 1.0 · 2026-09-20
@@ -20,7 +20,7 @@ Three OS processes, so a crash in one does not take down the others.
 | **P-SERVE** | FastAPI, WebSocket fan-out, static UI | Auto-restart |
 
 P-CORE is the source of truth. P-SERVE is a read-model with a control channel; it never
-computes verdicts. P-MEDIA is fire-and-forget — **if it dies, supervision continues**.
+computes verdicts. P-MEDIA is fire-and-forget - **if it dies, supervision continues**.
 Losing the video recorder must never stop the procedure supervisor.
 
 ---
@@ -40,9 +40,9 @@ Losing the video recorder must never stop the procedure supervisor.
 10 Publish system.ready, UI turns ready
 ```
 
-**Startup rules.** Steps 3–5 are fatal: never run on an invalid procedure or missing model.
-Steps 6–8 are degradable: warn, log, continue. The UI shows which subsystems came up
-degraded — the operator must never discover a dead subsystem by its silence.
+**Startup rules.** Steps 3-5 are fatal: never run on an invalid procedure or missing model.
+Steps 6-8 are degradable: warn, log, continue. The UI shows which subsystems came up
+degraded - the operator must never discover a dead subsystem by its silence.
 
 Budget: ≤30 s cold (NFR-08).
 
@@ -81,7 +81,7 @@ judging; **End run** (`POST /api/session/stop`) seals the chain and releases the
 returning to Ready. **Complete** seals the run but keeps the camera on for the debrief.
 Starting while a run is live is a restart: the old run is sealed first, judged by its own
 engine, before the new one begins. Between runs the camera can be powered alone as a
-*preview* (`POST /api/camera`) for training capture — it perceives but judges and logs
+*preview* (`POST /api/camera`) for training capture - it perceives but judges and logs
 nothing. The UI shows **Arming** from Start until the first frame arrives; no run is
 logged without frames. The rack-lock wait described above is **not yet implemented**.
 `--autostart` restores the old start-on-launch behaviour.
@@ -162,7 +162,7 @@ Step 4 PENDING, step 5 predicates reach COMPLETE
 ```
 Budget: ≤1.0 s (NFR-03).
 
-**Design note.** The system does not roll back or block. It reports and continues — the
+**Design note.** The system does not roll back or block. It reports and continues - the
 crew decides. An advisor that halts the procedure would be worse than no advisor.
 
 ### 6.3 Out-of-order
@@ -178,7 +178,7 @@ Step T completes with an unmet precondition of higher ordinal
   → T is still marked complete: it did happen
 ```
 
-Under `strict_preconditions: true` the behaviour changes — the step enters `OUT_OF_ORDER`,
+Under `strict_preconditions: true` the behaviour changes - the step enters `OUT_OF_ORDER`,
 is not marked complete, and re-evaluates once its preconditions are met. See TRD §7.6.
 
 **Which mode detects what.** §6.2 and §6.3 need the later step to be judged, which only
@@ -196,7 +196,7 @@ Step 1 "pick up the bottle" ACTIVE; the operator picks up the phone, which only 
 ```
 
 Quiet for objects an earlier step used, objects the lookahead will judge itself, and
-anything already in view when the step began — the resting scene is not an action. At most
+anything already in view when the step began - the resting scene is not an action. At most
 one alert per step and object every 10 s. See TRD §7.7.
 
 ### 6.3b Wrong hand
@@ -276,10 +276,10 @@ identical UI and voice paths. Telemetry is written to a separate replay file, ne
 appended to the original.
 
 Replay serves three purposes, in order of importance to the project:
-1. **Demo insurance** — camera failure in front of the jury becomes a non-event.
-2. **Engine development** — the state machine is built entirely this way before perception
+1. **Demo insurance** - camera failure in front of the jury becomes a non-event.
+2. **Engine development** - the state machine is built entirely this way before perception
    exists.
-3. **Regression testing** — the golden corpus (TRD §12.2) runs through this path.
+3. **Regression testing** - the golden corpus (TRD §12.2) runs through this path.
 
 ---
 
@@ -297,14 +297,14 @@ Budget: ≤400 ms verdict to audio. Fixed prompts are pre-rendered, so this is a
 not a synthesis.
 
 Optional ASR: continuous listening on a fixed grammar. Recognition emits `crew_action`.
-Unrecognised speech is silently ignored — never guessed at.
+Unrecognised speech is silently ignored - never guessed at.
 
 ---
 
 ## 9. Procedure hot-swap (D-02)
 
 ```
-1  A live run is sealed first — the new procedure never inherits its steps
+1  A live run is sealed first - the new procedure never inherits its steps
 2  POST /api/procedure/load { id, start, force }     id = a file stem in procedures/
 3  Validate → reject with field path on failure, keep current procedure loaded
 4  Check required vocabulary ⊆ loaded detector classes
@@ -318,7 +318,7 @@ Unrecognised speech is silently ignored — never guessed at.
 comment), step count, rack/pose needs and the classes the current detector cannot see,
 so the refusal in step 4 is visible before anyone presses Run.
 
-Perception models are **not** reloaded — that is the whole point. Budget ≤10 s (NFR-11).
+Perception models are **not** reloaded - that is the whole point. Budget ≤10 s (NFR-11).
 
 The vocabulary check in step 4 is what keeps the claim honest: the system refuses a
 procedure it genuinely cannot perceive, rather than failing mysteriously at step 3 in front

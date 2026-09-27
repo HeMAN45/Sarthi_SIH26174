@@ -1,4 +1,4 @@
-# DEMO-LIVE-4 — same as demo_live but with a 4th step (a ball).
+# DEMO-LIVE-4 - same as demo_live but with a 4th step (a ball).
 #
 # Demonstrates that adding an object the detector ALREADY knows needs zero
 # training: 'sports ball', 'apple', 'orange', 'cup', etc. are all COCO classes,

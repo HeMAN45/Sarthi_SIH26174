@@ -1,4 +1,4 @@
-"""Video output — local recording and RTSP republishing.
+"""Video output - local recording and RTSP republishing.
 
 Both halves of PS bullet 5. They degrade independently on purpose: losing the
 RTSP sink must never stop the local recording, and losing video altogether must

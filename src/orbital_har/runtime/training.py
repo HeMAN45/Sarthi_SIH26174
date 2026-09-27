@@ -1,7 +1,7 @@
 """On-device dataset capture and classifier training.
 
 Image *classification*, not detection, is what lets an operator teach the system
-a new object by pointing a camera at it — no bounding boxes to draw. It is also
+a new object by pointing a camera at it - no bounding boxes to draw. It is also
 how object *states* are captured: ``open_book`` and ``closed_book`` are simply
 two classes.
 
@@ -11,7 +11,7 @@ covered lens yields a confident wrong answer and completes steps on its own.
 
 Mandatory is not the same as sufficient. The classifier answers "which of my
 classes does this whole picture look most like", so ``background`` must cover
-everything the camera will see that is *not* a target — the empty scene, but
+everything the camera will see that is *not* a target - the empty scene, but
 also empty hands, fingers, faces and other objects. A background of blank walls
 teaches "not a blank wall means the object", and then a raised finger completes
 the step. :meth:`TrainManager.advice` says so before training, and the test
@@ -154,7 +154,7 @@ class TrainManager:
         """Harvest evenly-spaced frames from a recorded clip into a class.
 
         Recording a short clip and sampling it is the cheapest way to get the
-        variety — angles, lighting, motion blur — that a classifier needs.
+        variety - angles, lighting, motion blur - that a classifier needs.
         """
         tmp = self.root / f"_upload_{uuid.uuid4().hex[:8]}.mp4"
         tmp.parent.mkdir(parents=True, exist_ok=True)
@@ -213,7 +213,7 @@ class TrainManager:
                 out.append(
                     f"'{bg['name']}' has {bg['count']} images but '"
                     f"{max(targets, key=lambda c: c['count'])['name']}' has {most}. "
-                    "Give background at least as many — it has to cover everything that is "
+                    "Give background at least as many - it has to cover everything that is "
                     "not a target."
                 )
             if len(targets) == 1:
@@ -221,7 +221,7 @@ class TrainManager:
                     f"With one target class the model only learns '{targets[0]['name']}' versus "
                     "background, so anything unlike your background photos will be called "
                     f"'{targets[0]['name']}'. Put your empty hands, fingers, face and other "
-                    "objects into background — if your target photos show your hand, background "
+                    "objects into background - if your target photos show your hand, background "
                     "must show it too."
                 )
         thin = [c["name"] for c in classes if 0 < c["count"] < RECOMMENDED_PER_CLASS]
@@ -398,7 +398,7 @@ class TrainManager:
         """Train/val folders with no image in both.
 
         Validation that re-uses training images reports near-perfect accuracy
-        for a model that has only memorised them — the one number an operator
+        for a model that has only memorised them - the one number an operator
         would trust was the one that could not be trusted.
         """
         ds = self.root / "dataset"

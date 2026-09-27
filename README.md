@@ -16,14 +16,27 @@ Everything runs offline on an edge device. No cloud, no network, no exceptions.
 
 ## Quickstart
 
+Needs **Python 3.11** and **Node.js 20.19+**. From the repository root:
+
 ```bash
-uv sync --group dev
+uv sync --all-extras --group dev
 ```
+
+Without uv, `pip install -r requirements.txt` in a Python 3.11 virtual environment does the
+same (it pins the tested versions and installs SARTHI itself). Then build the dashboard once:
+
+```bash
+cd ui && npm install && npm run build
+```
+
+The detector and pose weights (`yolo11n.pt`, `yolo11n-pose.pt`) download by themselves on
+the first run — internet needed once, fully offline after that.
 
 ### Voice (optional, but it is how alerts are meant to be heard)
 
+The speech engine comes with the install above; the voice itself is a one-time download:
+
 ```bash
-uv pip install piper-tts
 uv run python -m piper.download_voices en_US-lessac-medium --data-dir models/voices
 ```
 

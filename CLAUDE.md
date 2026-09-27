@@ -94,7 +94,7 @@ find yourself needing perception to test the engine, the seam has been broken.
 
 ## Current state
 
-**The pipeline runs end to end on a camera.** 453 tests pass; ruff, the import-boundary
+**The pipeline runs end to end on a camera.** 465 tests pass; ruff, the import-boundary
 contract and the offline guard are all green.
 
 Built and working:
@@ -105,7 +105,7 @@ Built and working:
   golden replay corpus.
 - **perception** - `rackframe` (ArUco + homography to rack millimetres, input-frame
   canonicalization), `pose` (YOLO11-pose), `hands` (palm-from-forearm plus geometric
-  contact inference), `gestures` (thirteen body actions -- postures and movements --
+  contact inference), `colours` (solid-coloured blocks found by hue, no model), `gestures` (thirteen body actions -- postures and movements --
   measured in the body's own frame, so they read the same upright, lying or inverted), `detect` (boxes, or an on-device
   classifier or detector), `capture`, and `pipeline` which joins them into event
   payloads. Body tracking is on by default and drawn on the feed. Scene procedures get

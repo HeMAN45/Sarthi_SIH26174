@@ -1,0 +1,69 @@
+# CUBE-TRANSFER - move the blue cube from position A to position B, right hand
+#
+# The cube is found by its colour, so nothing needs training: any solid blue
+# block works. Positions A and B are the two saffron boxes drawn on the camera
+# view; put the cube inside POSITION_A before you start.
+#
+#   1  the cube is at position A       blue cube inside A for a second
+#   2  pick it up with your RIGHT hand  right hand on the cube (left hand alerts)
+#   3  place it on position B          cube inside B for two seconds
+#
+# Mistakes it catches: the left hand picking it up (wrong hand, straight away);
+# in Strict mode, the cube reaching B without the right-hand pick-up (out of
+# sequence); a step left undone for 60 s (no progress).
+#
+# Move A or B by editing the rects below: fractions of the frame, x0 y0 x1 y1,
+# in the camera's true view (the screen is mirrored, the boxes follow it).
+
+procedure:
+  id: cube_transfer
+  name: Blue cube from A to B
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: colour
+
+markers: []
+regions:
+  - id: position_a
+    rect: [0.06, 0.52, 0.40, 0.97]
+  - id: position_b
+    rect: [0.60, 0.52, 0.94, 0.97]
+
+objects:
+  - id: blue_cube
+    classes: [blue_cube]
+    color: blue
+
+steps:
+  - id: s1
+    name: The cube is at position A
+    voice: "Cube transfer. Step one. Put the blue cube on position A."
+    preconditions: []
+    requires:
+      - dwell: blue_cube
+        region: position_a
+        seconds: 1
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s2
+    name: Pick up the cube with your right hand
+    voice: "Step two. Pick up the blue cube with your right hand."
+    preconditions: [s1]
+    requires:
+      - contact: [hand, blue_cube]
+        side: right
+        hold_frames: 4
+    timeout_s: 60
+    on_timeout: stall
+
+  - id: s3
+    name: Place the cube on position B
+    voice: "Step three. Place the cube on position B."
+    preconditions: [s2]
+    requires:
+      - dwell: blue_cube
+        region: position_b
+        seconds: 2
+    timeout_s: 60
+    on_timeout: stall

@@ -249,6 +249,9 @@ class ObjectDef(BaseModel):
     id: str
     classes: list[str]
     tether_required: bool = False
+    #: A solid-coloured object found by its colour, with no model: a blue cube,
+    #: a red box. Its classes need no training.
+    color: Literal["red", "orange", "yellow", "green", "blue", "purple"] | None = None
 
 
 class RegionDef(BaseModel):
@@ -423,6 +426,11 @@ class Procedure(BaseModel):
     def vocabulary_classes(self) -> set[str]:
         """Detector classes this procedure needs in order to run at all."""
         return {c for o in self.objects for c in o.classes}
+
+    @property
+    def colour_classes(self) -> dict[str, str]:
+        """Class -> colour, for the objects found by their colour."""
+        return {c: o.color for o in self.objects if o.color for c in o.classes}
 
     @property
     def is_scene(self) -> bool:

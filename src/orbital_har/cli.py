@@ -208,6 +208,7 @@ def cmd_live(args: argparse.Namespace, console: Console) -> int:
 
     console.print("[dim]loading detector ...[/]")
     detector = Detector(YOLO(args.model))
+    detector.set_colours(proc.colour_classes)
     pipeline = PerceptionPipeline(detector)
     want_rack, want_pose = perception_needs(proc)
     pipeline.configure(

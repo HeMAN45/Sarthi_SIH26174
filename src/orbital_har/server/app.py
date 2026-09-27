@@ -477,7 +477,7 @@ def _to_train(proc: Procedure) -> list[str]:
     added beside it, not instead of it.
     """
     stock = set(_session.detector.base_classes) if _session is not None else set()
-    return sorted(proc.vocabulary_classes - stock)
+    return sorted(proc.vocabulary_classes - stock - set(proc.colour_classes))
 
 
 def _library_files() -> list[tuple[Path, str]]:

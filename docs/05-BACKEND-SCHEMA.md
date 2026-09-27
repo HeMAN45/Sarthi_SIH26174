@@ -272,12 +272,12 @@ CREATE TABLE config_snapshots (
 
 ## 4. JSONL formats
 
-### 4.1 Event stream — `events.jsonl`
+### 4.1 Event stream - `events.jsonl`
 
 Raw bus output, one envelope per line, exactly as specified in [TRD §4](02-TRD.md).
 High volume, never loaded wholesale, consumed by streaming. This is the replay source.
 
-### 4.2 Telemetry — `telemetry.jsonl`
+### 4.2 Telemetry - `telemetry.jsonl`
 
 The deliverable. One record per **state transition**, never per frame.
 
@@ -301,7 +301,7 @@ The deliverable. One record per **state transition**, never per frame.
 | `degraded` | level, reason |
 | `session_end` | status, totals, bytes |
 
-Keys are abbreviated deliberately — the 50 KB/hour budget (FR-43) is a requirement, and
+Keys are abbreviated deliberately - the 50 KB/hour budget (FR-43) is a requirement, and
 verbose keys are the easiest way to blow it.
 
 ### 4.3 Hash chain
@@ -330,7 +330,7 @@ file and writes `verified_ok` plus `first_bad_seq`.
 | Downlink ratio | `telemetry_chain.bytes_written` vs `raw_video_equiv_bytes` |
 
 Live UI state is served from memory and pushed over WebSocket. **SQLite is never on the
-per-frame path** — it is written on transitions and on a health-sample timer only.
+per-frame path** - it is written on transitions and on a health-sample timer only.
 
 ---
 
@@ -340,7 +340,7 @@ per-frame path** — it is written on transitions and on a health-sample timer o
 |---|---|
 | Video segments | 14 days unless the session is tagged `keep` |
 | Event streams | 30 days; golden-corpus sessions kept forever |
-| Telemetry | Never deleted — it is small and it is the deliverable |
+| Telemetry | Never deleted - it is small and it is the deliverable |
 | Metrics samples | 30 days |
 | Session rows | Never deleted |
 
@@ -353,7 +353,7 @@ behaviour the mission framing implies.
 ## 7. Migrations
 
 Plain numbered SQL files in `migrations/NNN_description.sql`, applied in order at startup,
-tracked in `schema_version`. No ORM-generated migrations — the schema is small enough that
+tracked in `schema_version`. No ORM-generated migrations - the schema is small enough that
 hand-written SQL is clearer and reviewable in a hackathon setting.
 
 Forward-only. Breaking a migration during development is resolved by deleting `orbital.db`

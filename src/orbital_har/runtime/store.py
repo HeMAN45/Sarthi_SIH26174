@@ -1,6 +1,6 @@
 """SQLite persistence layer.
 
-Stores session metadata, step outcomes, alerts and artifacts — the relational
+Stores session metadata, step outcomes, alerts and artifacts - the relational
 tier described in docs/05-BACKEND-SCHEMA.md §1.
 
 Never on the per-frame path (invariant #7). Written on state transitions, health

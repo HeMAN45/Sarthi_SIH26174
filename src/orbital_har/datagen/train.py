@@ -8,7 +8,7 @@ with a floor: rotation is limited to a few degrees and vertical flips are off,
 because a ground photograph is never upside down. An astronaut has no fixed
 "up", and the payload camera sees them at any angle. Training with full rotation
 and vertical flips costs nothing and is the cheapest 80% of the PS's orientation
-clause — the remaining 20% is the rack canonicalization in
+clause - the remaining 20% is the rack canonicalization in
 ``perception.rackframe``, which straightens the input before the model ever
 sees it.
 

@@ -1,16 +1,16 @@
 /* =====================================================================
-   SARTHI — mission console
+   SARTHI - mission console
 
    An engineering instrument, not an app: flat surfaces, thin visible rules,
    sharp corners, mono labels, one accent. Nothing glows and nothing bounces;
    the only things that move are live values.
 
    Three themes, one token set. Graphite (default) is charcoal rather than
-   black — dark enough for a dim hall, light enough to read at a glance.
+   black - dark enough for a dim hall, light enough to read at a glance.
    Slate is cooler; Daylight is for bright rooms and washed-out projectors.
    The camera stays a dark island in every theme: video reads best on black.
 
-   Saffron is the accent — the colour of ISRO's mark. Caution is yellow and is
+   Saffron is the accent - the colour of ISRO's mark. Caution is yellow and is
    always paired with an icon and a word, so the two never compete.
 
    Geist for instructions and prose, Geist Mono for labels, headings and every
@@ -135,8 +135,8 @@
   --shadow: 0 1px 2px rgba(20, 24, 28, 0.08);
 }
 
-/* The camera is a dark island in every theme. Everything drawn inside it —
-   standby, alerts, the debrief — takes these tokens, not the page's. */
+/* The camera is a dark island in every theme. Everything drawn inside it -
+   standby, alerts, the debrief - takes these tokens, not the page's. */
 [data-theme="daylight"] .viewport,
 [data-theme="daylight"] .preview {
   color-scheme: dark;
@@ -487,7 +487,7 @@ label.btn { user-select: none; }
 .panel { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
 .panel-pad { padding: 18px; }
 .panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; min-height: 24px; }
-/* Section titles: mono caps with a square saffron tick — the console's signature. */
+/* Section titles: mono caps with a square saffron tick - the console's signature. */
 .panel-title {
   display: flex;
   align-items: center;
@@ -902,7 +902,7 @@ button.item:hover, .item.clickable:hover { background: var(--tint-2); border-col
   .seal { grid-template-columns: 1fr; }
 }
 
-/* Short screens — 720p projectors are common in judging halls. Tighten the
+/* Short screens - 720p projectors are common in judging halls. Tighten the
    rhythm rather than lose anything: every panel still fits without scrolling. */
 @media (max-height: 820px) {
   :root { --topbar-h: 58px; }

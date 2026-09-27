@@ -1,6 +1,6 @@
-# SIH26174 — Official Problem Statement (verbatim)
+# SIH26174 - Official Problem Statement (verbatim)
 
-Source: https://sih.gov.in/sih2026PS — fetched 2026-09-20
+Source: https://sih.gov.in/sih2026PS - fetched 2026-09-20
 
 | Field | Value |
 |---|---|
@@ -73,6 +73,6 @@ remainder.
 
 ## Glossary
 
-- **BAS** — Bharatiya Antariksh Station, India's planned crewed space station.
-- **HAR** — Human Activity Recognition.
-- **HMR** — Human Mesh Recovery (3D body mesh reconstruction from video).
+- **BAS** - Bharatiya Antariksh Station, India's planned crewed space station.
+- **HAR** - Human Activity Recognition.
+- **HMR** - Human Mesh Recovery (3D body mesh reconstruction from video).

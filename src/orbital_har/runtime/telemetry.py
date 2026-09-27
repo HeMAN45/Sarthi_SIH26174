@@ -1,6 +1,6 @@
 """Hash-chained telemetry writer and verifier.
 
-The telemetry file is the deliverable artifact — structured, append-only, and
+The telemetry file is the deliverable artifact - structured, append-only, and
 tamper-evident.  One record per *state transition*, never per frame.
 
 Chain algorithm (docs/05-BACKEND-SCHEMA.md §4.3):

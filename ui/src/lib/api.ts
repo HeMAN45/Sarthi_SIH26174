@@ -1,5 +1,5 @@
 /** Thin API client. The SPA is served by the same FastAPI process, so every
- *  path is relative — no host config, and nothing to break when offline. */
+ *  path is relative - no host config, and nothing to break when offline. */
 
 export type StepState =
   | "pending" | "active" | "complete" | "skipped"
@@ -155,7 +155,7 @@ export const api = {
   start: (mode: "clean" | "strict" = "clean") => post(`/api/session/start?mode=${mode}`),
   /** Seal the run and release the camera. */
   stop: () => post("/api/session/stop"),
-  /** Camera without a run — the preview training capture needs. */
+  /** Camera without a run - the preview training capture needs. */
   camera: (on: boolean) => post(`/api/camera?on=${on}`),
   /** Selfie-style display. The picture only; coordinates never flip. */
   mirror: (on: boolean) => post(`/api/camera/mirror?on=${on}`),
@@ -237,7 +237,7 @@ export const api = {
       .then((r) => r.json() as Promise<{ ok: boolean; message: string }>),
   trainStatus: () =>
     fetch("/api/train/status").then(j<{ status: TrainStatus; model_ready: boolean }>),
-  /** Deploy the model and start a run — with a library procedure, or one step per class. */
+  /** Deploy the model and start a run - with a library procedure, or one step per class. */
   useModel: (procedure?: string) =>
     fetch(`/api/train/use${procedure ? `?procedure=${encodeURIComponent(procedure)}` : ""}`,
           { method: "POST" })

@@ -33,7 +33,7 @@ export default function App() {
     try { await api.shutdown(); } catch { /* the server is going away; expected */ }
   };
 
-  // 1–4 switch sections, M mutes. Never while typing.
+  // 1-4 switch sections, M mutes. Never while typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;

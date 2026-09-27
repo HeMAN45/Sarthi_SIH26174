@@ -94,7 +94,7 @@ def test_names_never_collide_with_each_other_or_the_library(tmp_path: Path) -> N
 def test_the_file_explains_itself_to_the_library(tmp_path: Path) -> None:
     store = ExperimentStore(tmp_path)
     text = store.path(store.save("Drink water", DRINK)).read_text(encoding="utf-8")
-    assert text.startswith("# DRINK_WATER — Drink water\n")
+    assert text.startswith("# DRINK_WATER - Drink water\n")
     assert "Pick up the bottle -> Open the cap -> Take a drink" in text
 
 

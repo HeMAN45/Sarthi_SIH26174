@@ -273,7 +273,7 @@ class ExperimentStore:
         Procedure.model_validate(data)  # never write a file that cannot be loaded
         summary = " -> ".join(s["name"] for s in data["steps"])
         header = (
-            f"# {exp_id.upper()} — {data['procedure']['name']}\n"
+            f"# {exp_id.upper()} - {data['procedure']['name']}\n"
             "#\n"
             f"# Saved from the dashboard on {time.strftime('%Y-%m-%d %H:%M')}. "
             f"{len(data['steps'])} steps: {summary}\n\n"

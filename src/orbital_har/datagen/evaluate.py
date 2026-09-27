@@ -5,7 +5,7 @@ Three questions, and a project is only defensible when it can answer all three:
 1. **Does the detector see the props?** mAP per class. Delegated to Ultralytics.
 2. **Does the system reach the right verdicts?** Replay recorded sessions through
    the real engine and score the states and alerts it produced. This is the
-   number that matters — a detector with excellent mAP that still calls a
+   number that matters - a detector with excellent mAP that still calls a
    skipped step complete has failed at the actual job.
 3. **Are its confidences honest?** A model that says 0.9 should be right about
    nine times in ten. Temperature scaling fixes the scale; ECE measures whether
@@ -273,7 +273,7 @@ def fit_temperature(
 
     ``lo`` is 0.5, not near zero, on purpose. On perfectly separable data NLL is
     minimised by driving the temperature towards zero, which collapses every
-    confidence to 0 or 1 — a "perfect" likelihood that destroys the ordering the
+    confidence to 0 or 1 - a "perfect" likelihood that destroys the ordering the
     thresholds are chosen from. Calibration is meant to soften an overconfident
     model, so the useful range is bounded below.
     """
@@ -335,7 +335,7 @@ def choose_thresholds(
     """Fit τ_complete and τ_abstain from calibrated confidences.
 
     ``τ_complete`` is the lowest confidence at which the engine is right at
-    least ``target_precision`` of the time — act only where the evidence has
+    least ``target_precision`` of the time - act only where the evidence has
     earned it. ``τ_abstain`` is where accuracy falls to a coin toss: below that
     the honest answer is "cannot verify", not a guess.
     """
@@ -377,7 +377,7 @@ def calibrate(
 
     Refuses to hand back fitted thresholds when the sample carries no signal.
     A corpus in which every verdict is correct makes "the lowest confidence
-    where precision is still 95%" mean "the lowest confidence present" — a
+    where precision is still 95%" mean "the lowest confidence present" - a
     number that looks like a calibration and is really just the minimum of the
     data. Shipping that as a threshold would quietly lower the bar for acting on
     weak evidence, which is the opposite of what calibration is for.

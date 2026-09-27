@@ -7,24 +7,24 @@ import {
 export type GestureGroup = "hand" | "both" | "motion";
 
 /** Body actions SARTHI reads from pose, in the operator's own frame of
- *  reference — they read the same standing, lying or upside down. Mirrors
+ *  reference - they read the same standing, lying or upside down. Mirrors
  *  GESTURES in core/types.py. */
 export const GESTURES: {
   id: string; label: string; hint: string; icon: LucideIcon; group: GestureGroup; oneHand: boolean;
 }[] = [
   { id: "hand_raised", label: "Raise a hand", hint: "Forearm up, like asking a question", icon: Hand, group: "hand", oneHand: true },
-  { id: "hand_to_face", label: "Hand to face", hint: "At the mouth or face — drinking, eating", icon: GlassWater, group: "hand", oneHand: true },
+  { id: "hand_to_face", label: "Hand to face", hint: "At the mouth or face - drinking, eating", icon: GlassWater, group: "hand", oneHand: true },
   { id: "hand_on_head", label: "Hand on head", hint: "Elbow up, hand beside the head", icon: CircleUserRound, group: "hand", oneHand: true },
   { id: "reaching", label: "Reach out", hint: "Arm straight, lifted away from the body", icon: MoveUpRight, group: "hand", oneHand: true },
   { id: "both_hands_raised", label: "Raise both hands", hint: "Both forearms up", icon: HandMetal, group: "both", oneHand: false },
-  { id: "hands_together", label: "Hands together", hint: "Both hands close — twisting a cap", icon: Handshake, group: "both", oneHand: false },
+  { id: "hands_together", label: "Hands together", hint: "Both hands close - twisting a cap", icon: Handshake, group: "both", oneHand: false },
   { id: "arms_crossed", label: "Cross your arms", hint: "Each hand past the middle of the chest", icon: X, group: "both", oneHand: false },
   { id: "arms_out", label: "Arms out to the sides", hint: "A T: both arms straight, shoulder height", icon: MoveHorizontal, group: "both", oneHand: false },
   { id: "hands_on_hips", label: "Hands on hips", hint: "Standing, knees in view", icon: PersonStanding, group: "both", oneHand: false },
   { id: "waving", label: "Wave", hint: "A raised hand going side to side", icon: WavesHorizontal, group: "motion", oneHand: true },
-  { id: "lifting", label: "Lift", hint: "The hand rises — lifting what it holds", icon: ArrowUpFromLine, group: "motion", oneHand: true },
-  { id: "lowering", label: "Lower", hint: "The hand comes down — setting it down", icon: ArrowDownToLine, group: "motion", oneHand: true },
-  { id: "clapping", label: "Clap", hint: "Hands meeting again and again — slowly", icon: Sparkle, group: "motion", oneHand: false },
+  { id: "lifting", label: "Lift", hint: "The hand rises - lifting what it holds", icon: ArrowUpFromLine, group: "motion", oneHand: true },
+  { id: "lowering", label: "Lower", hint: "The hand comes down - setting it down", icon: ArrowDownToLine, group: "motion", oneHand: true },
+  { id: "clapping", label: "Clap", hint: "Hands meeting again and again - slowly", icon: Sparkle, group: "motion", oneHand: false },
 ];
 
 export const GROUP_LABEL: Record<GestureGroup, string> = {

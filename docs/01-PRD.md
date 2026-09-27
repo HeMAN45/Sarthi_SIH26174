@@ -1,6 +1,6 @@
-# PRD — Product Requirements Document
+# PRD - Product Requirements Document
 
-**Project:** ORBITAL-HAR — On-board procedure supervision for BAS experiments
+**Project:** ORBITAL-HAR - On-board procedure supervision for BAS experiments
 **Problem statement:** SIH26174 (ISRO / Department of Space)
 **Team:** Hashira
 **Version:** 1.0 · 2026-09-20
@@ -34,7 +34,7 @@ procedure telemetry.**
 | G3 | Reduce what ground control must receive by orders of magnitude versus raw video |
 | G4 | Generalise to a new experiment by editing a config file, with no retraining |
 | G5 | Remain correct when the operator has no fixed "up" (microgravity orientation) |
-| G6 | Justify every decision it makes — no unexplainable black-box verdicts |
+| G6 | Justify every decision it makes - no unexplainable black-box verdicts |
 
 ## 3. Non-goals
 
@@ -48,16 +48,16 @@ procedure telemetry.**
 
 ## 4. Personas
 
-**P1 — Crew operator (primary).** Executing the procedure. Hands occupied, possibly gloved,
+**P1 - Crew operator (primary).** Executing the procedure. Hands occupied, possibly gloved,
 possibly inverted. Needs the next instruction legible at a glance and an alert they cannot
-miss. Has zero tolerance for false alarms — an assistant that cries wolf gets muted, and a
+miss. Has zero tolerance for false alarms - an assistant that cries wolf gets muted, and a
 muted assistant has no value.
 
-**P2 — Ground operations analyst (secondary).** Receives telemetry after the fact, not live
+**P2 - Ground operations analyst (secondary).** Receives telemetry after the fact, not live
 video. Needs to reconstruct exactly what happened, in what order, with what confidence, and
 to trust that the record was not altered.
 
-**P3 — Evaluation jury (SIH-specific, real).** ISRO engineers assessing the system in short
+**P3 - Evaluation jury (SIH-specific, real).** ISRO engineers assessing the system in short
 rotating visits. Needs to grasp the mission rationale within ninety seconds, see evidence
 of edge feasibility, and have every claim demonstrable live. This persona is explicitly in
 scope: several requirements below exist to serve it.
@@ -68,58 +68,58 @@ scope: several requirements below exist to serve it.
 
 ### Crew operator
 
-**US-01** — As a crew operator, I see the next step displayed prominently before I begin, so
+**US-01** - As a crew operator, I see the next step displayed prominently before I begin, so
 I never have to consult a paper checklist mid-procedure.
 *Accepts when:* on session start the first step is visible within 2 s and spoken once.
 
-**US-02** — As a crew operator, I am told the next step as soon as I complete the current
+**US-02** - As a crew operator, I am told the next step as soon as I complete the current
 one, so the procedure flows without me asking.
 *Accepts when:* step completion triggers visual and voice advance within 1.5 s of the
 completing evidence being stable.
 
-**US-03** — As a crew operator, I am alerted by voice when I skip a step, so I can correct
+**US-03** - As a crew operator, I am alerted by voice when I skip a step, so I can correct
 before the error propagates.
 *Accepts when:* a skipped step produces a distinct urgent voice alert plus a persistent
 on-screen banner, and the banner does not clear until acknowledged or corrected.
 
-**US-04** — As a crew operator, I am alerted when I perform a step out of order.
+**US-04** - As a crew operator, I am alerted when I perform a step out of order.
 *Accepts when:* evidence for a step whose preconditions are unmet raises an out-of-order
 alert naming both the observed and the expected step.
 
-**US-05** — As a crew operator, I am told when the system is unsure rather than being given a
+**US-05** - As a crew operator, I am told when the system is unsure rather than being given a
 confident wrong answer.
 *Accepts when:* step confidence below threshold for longer than the dwell window produces an
-explicit "cannot verify — confirm manually" state, never a silent guess.
+explicit "cannot verify - confirm manually" state, never a silent guess.
 
-**US-06** — As a crew operator, I can override the system when I know better.
+**US-06** - As a crew operator, I can override the system when I know better.
 *Accepts when:* an override control marks the current step complete, is written to the log
 as crew-attributed, and the procedure advances.
 
-**US-07** — As a crew operator, the system keeps working when I am sideways or inverted.
+**US-07** - As a crew operator, the system keeps working when I am sideways or inverted.
 *Accepts when:* step recognition accuracy at ±90° and 180° operator roll is within 10
 percentage points of the upright baseline.
 
 ### Ground operations analyst
 
-**US-08** — As a ground analyst, I receive a compact structured record of the session.
+**US-08** - As a ground analyst, I receive a compact structured record of the session.
 *Accepts when:* a completed session yields a machine-readable log whose size is under 50 KB
 per procedure hour.
 
-**US-09** — As a ground analyst, I can verify the record was not altered.
+**US-09** - As a ground analyst, I can verify the record was not altered.
 *Accepts when:* the log is hash-chained and a verifier tool reports a pass or names the first
 broken link.
 
-**US-10** — As a ground analyst, I can review the video when bandwidth allows.
+**US-10** - As a ground analyst, I can review the video when bandwidth allows.
 *Accepts when:* the full session is stored locally in segments and streamed live to a
 configured IP endpoint.
 
 ### Jury / operator of the demo
 
-**US-11** — As an evaluator, I can load a procedure the system has never run and see it work.
+**US-11** - As an evaluator, I can load a procedure the system has never run and see it work.
 *Accepts when:* a second procedure YAML using the same object vocabulary is loaded at runtime
 without restarting the perception stack or retraining any model.
 
-**US-12** — As an evaluator, I can see live evidence that this runs within an edge budget.
+**US-12** - As an evaluator, I can see live evidence that this runs within an edge budget.
 *Accepts when:* the dashboard displays live FPS, memory, and inference latency.
 
 ---
@@ -134,7 +134,7 @@ Every requirement traces to an ISRO expected-solution bullet (see §10).
 |---|---|---|
 | FR-01 | Continuously ingest frames from a fixed camera at ≥15 FPS sustained | Must |
 | FR-02 | Detect procedure-relevant objects and their discrete states (open/closed, present/absent) | Must |
-| FR-03 | Track operator hand landmarks and derive hand–object contact | Must |
+| FR-03 | Track operator hand landmarks and derive hand-object contact | Must |
 | FR-04 | Estimate operator body pose expressed in the payload-rack coordinate frame | Must |
 | FR-05 | Recover payload-rack 6-DoF pose from fiducial markers every frame | Must |
 | FR-06 | Canonicalize the input frame into rack orientation before inference | Must |
@@ -260,10 +260,10 @@ recorded as evidence before the finale.
 | Continuously process local video feeds to track experiment sequence | FR-01, FR-02, FR-03, FR-08, FR-12 |
 | Suggest the next step at start and after each step | FR-30, FR-50, US-01, US-02 |
 | Voice alert on skipped or out-of-sequence step | FR-31, FR-32, FR-33 |
-| Timestamped structured lightweight log with outcomes | FR-40 – FR-43, FR-47 |
+| Timestamped structured lightweight log with outcomes | FR-40 - FR-43, FR-47 |
 | Stream video to a specific IP and store locally | FR-44, FR-45 |
-| GUI for monitoring | FR-50 – FR-56 |
-| Trained model runs on an offline standalone system | FR-60 – FR-63, NFR-10 |
+| GUI for monitoring | FR-50 - FR-56 |
+| Trained model runs on an offline standalone system | FR-60 - FR-63, NFR-10 |
 | *Optional:* orientation-agnostic rack-relative tracking | FR-04, FR-05, FR-06, D-01 |
 | Dataset generation for detection, pose, hand-object interaction | D-03, and §5 of the implementation plan |
 

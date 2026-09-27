@@ -15,7 +15,7 @@ and with what confidence, so a reviewer knows exactly which boxes have not yet
 been looked at by a person. An unreviewed dataset that looks reviewed is how a
 model ends up trained on its own mistakes.
 
-Open-vocabulary detectors cannot see object *state* — nothing in "an open red
+Open-vocabulary detectors cannot see object *state* - nothing in "an open red
 box" versus "a small closed red box" is reliably separable zero-shot. Expect the
 state classes to need the most correction; that is the part of the vocabulary a
 trained model exists to solve.
@@ -52,7 +52,7 @@ class LabelStats:
         if self.failures:
             lines.append(f"  {len(self.failures)} image(s) failed to read")
         lines.append("")
-        lines.append("These are machine guesses. Correct them before training —")
+        lines.append("These are machine guesses. Correct them before training -")
         lines.append("open/closed states especially, which zero-shot cannot judge.")
         return "\n".join(lines)
 

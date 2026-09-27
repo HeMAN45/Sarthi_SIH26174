@@ -1,4 +1,4 @@
-"""Tests for runtime.telemetry — hash-chained writer and verifier."""
+"""Tests for runtime.telemetry - hash-chained writer and verifier."""
 
 from __future__ import annotations
 

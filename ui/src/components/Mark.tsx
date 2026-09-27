@@ -1,5 +1,5 @@
 /** The SARTHI mark: a chariot wheel, drawn in one line. A sarthi is the
- *  charioteer — the one who guides. Takes the current accent colour. */
+ *  charioteer - the one who guides. Takes the current accent colour. */
 export function Mark({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" stroke="currentColor"

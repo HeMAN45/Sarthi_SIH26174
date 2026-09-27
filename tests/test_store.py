@@ -1,4 +1,4 @@
-"""Tests for runtime.store — session lifecycle and queries."""
+"""Tests for runtime.store - session lifecycle and queries."""
 
 from __future__ import annotations
 

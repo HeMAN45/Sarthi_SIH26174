@@ -1,4 +1,4 @@
--- 001_initial.sql — ORBITAL-HAR schema
+-- 001_initial.sql - ORBITAL-HAR schema
 -- Source of truth: docs/05-BACKEND-SCHEMA.md §3
 -- Applied once by runtime.migrations; tracked in schema_version.
 

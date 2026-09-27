@@ -1,4 +1,4 @@
-"""FastAPI application — the P-SERVE process.
+"""FastAPI application - the P-SERVE process.
 
 The single HTTP surface for the system. Bound to loopback by default
 (docs/03-APP-FLOW.md section 11); RTSP is the only externally-bound port.
@@ -8,7 +8,7 @@ from the live session, and serves the built dashboard. Everything it exposes is
 implemented somewhere in ``runtime`` or ``reasoning``.
 
 It works with or without a live session. Configured with only a Store it serves
-the history and verification endpoints — which is what the tests use, and what a
+the history and verification endpoints - which is what the tests use, and what a
 ground-ops review station would need. Configured with a :class:`LiveSession` it
 also serves the camera, the live state socket and the run controls.
 """
@@ -117,7 +117,7 @@ def configure(
 
 def get_store() -> Store:
     if _store is None:
-        raise RuntimeError("Store not configured — call server.app.configure() first")
+        raise RuntimeError("Store not configured - call server.app.configure() first")
     return _store
 
 
@@ -125,7 +125,7 @@ def live() -> LiveSession:
     """The live session, or a 503 explaining that this build has no camera."""
     if _session is None:
         raise HTTPException(
-            status_code=503, detail="no live session — this process is history-only"
+            status_code=503, detail="no live session - this process is history-only"
         )
     return _session
 
@@ -869,7 +869,7 @@ async def ws_endpoint(ws: WebSocket) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Static assets — the React dashboard
+# Static assets - the React dashboard
 # ---------------------------------------------------------------------------
 
 

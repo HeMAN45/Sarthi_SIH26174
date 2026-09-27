@@ -2,7 +2,7 @@
 
 The procedures are the contract. Hardcoding a class list here would create a
 second source of truth that silently drifts from the YAML the engine actually
-loads — and the failure mode is the worst kind: a model trained on classes the
+loads - and the failure mode is the worst kind: a model trained on classes the
 procedure never asks for, discovered at step seven in front of a jury.
 
 Object *states* are distinct classes (``red_box_open``, not ``red_box`` plus a

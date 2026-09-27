@@ -15,7 +15,7 @@ export interface Traces {
  *
  *  The device owns the voice: an alert that depends on somebody having a browser
  *  tab open is not a mission-critical alert. Browser speech stays as the fallback
- *  for when no voice model or audio player is installed — in which case the UI
+ *  for when no voice model or audio player is installed - in which case the UI
  *  also says so rather than quietly sounding fine.
  */
 export function useLive() {

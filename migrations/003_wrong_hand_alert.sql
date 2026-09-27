@@ -1,4 +1,4 @@
--- 003 — the wrong-hand alert
+-- 003 - the wrong-hand alert
 --
 -- A step may ask for the left or the right hand; the engine alerts when the
 -- other one does it (AlertKind.WRONG_HAND). As in 002, SQLite cannot alter a

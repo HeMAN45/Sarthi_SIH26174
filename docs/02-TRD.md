@@ -1,4 +1,4 @@
-# TRD — Technical Requirements Document
+# TRD - Technical Requirements Document
 
 **Project:** ORBITAL-HAR · SIH26174 · Team Hashira
 **Version:** 1.0 · 2026-09-20
@@ -10,13 +10,13 @@
 
 | Profile | Spec | Role |
 |---|---|---|
-| **DEV** | Ryzen 7, NVIDIA RTX laptop GPU *(exact model + VRAM to be confirmed — sets batch size)*, ~24 GB RAM, 150 GB free | Primary development and the fallback demo machine |
+| **DEV** | Ryzen 7, NVIDIA RTX laptop GPU *(exact model + VRAM to be confirmed - sets batch size)*, ~24 GB RAM, 150 GB free | Primary development and the fallback demo machine |
 | **TRAIN** | College GPU lab | Synthetic dataset renders, full training runs, hyperparameter sweeps |
-| **EDGE** | Jetson Orin Nano 8 GB *(not yet procured — see implementation plan gate M4)* | Target deployment; credibility demo |
+| **EDGE** | Jetson Orin Nano 8 GB *(not yet procured - see implementation plan gate M4)* | Target deployment; credibility demo |
 | **CAM** | USB UVC webcam, 1080p30, fixed mount, manual focus preferred | Capture |
 
 **Fallback position.** If EDGE is not procured, the demo runs on DEV with power and latency
-measured and published, plus a documented extrapolation. The architecture does not change —
+measured and published, plus a documented extrapolation. The architecture does not change -
 only the export target does.
 
 ### 1.1 Storage budget (150 GB ceiling is a real constraint)
@@ -35,7 +35,7 @@ only the export target does.
 
 **Rules.** Render to JPEG, never PNG. Keep only the best two checkpoints per experiment;
 prune weekly. Session recordings older than 14 days are deleted unless tagged `keep`.
-Raw footage is the only irreplaceable asset — back it up to the college lab or external
+Raw footage is the only irreplaceable asset - back it up to the college lab or external
 storage.
 
 ---
@@ -134,7 +134,7 @@ the operator should be doing in `expected_step_id` (§7.7).
 ### 4.3 Replay
 
 Any recorded stream is replayable at 1×, fast, or stepped, into an engine instance with no
-camera and no models loaded. **Replay is a first-class mode, not a test harness** — it is
+camera and no models loaded. **Replay is a first-class mode, not a test harness** - it is
 the demo fallback if the camera fails in front of the jury.
 
 ---
@@ -190,7 +190,7 @@ and everything else is a sibling key.
 |---|---|---|
 | `detect` | `detect: <class>` + `min_conf, hold_frames, min_area` | Class present above the floor for N consecutive frames; `min_area` (fraction of the frame) makes it "held up to the camera" in a scene procedure |
 | `absent` | `absent: <class>` + `min_conf, hold_frames` | Class not present for N frames |
-| `contact` | `contact: [a, b]` + `min_conf, hold_frames, side` | Hand–object or tool–object contact; `side: left \| right` requires that hand |
+| `contact` | `contact: [a, b]` + `min_conf, hold_frames, side` | Hand-object or tool-object contact; `side: left \| right` requires that hand |
 | `moved` | `moved: <object>` + `min_disp_mm` **or** `min_frac` | Displaced since step start: in rack millimetres (markers needed), or as a fraction of the frame (any webcam) |
 | `tilted` | `tilted: <object>` + `min_ratio, min_conf, hold_frames` | Tipped over: box at least `min_ratio` (0.65) as wide as tall. With `contact`, that is pouring |
 | `near` | `near: <object>` + `to, max_mm, hold_frames` | Within distance of `to`, which may be a **marker or another object** |
@@ -204,11 +204,11 @@ Gestures are orientation-free by construction: *up* is the hips-to-shoulders axi
 |---|---|---|
 | One hand (`side: left \| right`) | `hand_raised`, `hand_to_face`, `hand_on_head`, `reaching` | One frame |
 | Both hands / body | `both_hands_raised`, `hands_together`, `arms_crossed`, `arms_out`, `hands_on_hips` | One frame |
-| Movements | `waving`, `lifting`, `lowering` (one hand); `clapping` (both) | The last 2–2.5 s of wrist positions in body coordinates |
+| Movements | `waving`, `lifting`, `lowering` (one hand); `clapping` (both) | The last 2-2.5 s of wrist positions in body coordinates |
 
-`hands_on_hips` also needs both knees in view: seated at a desk the pose model guesses hips under the table edge, and hands resting on the desk then look exactly like hands on hips (170 desk photos, no knee ever above 0.1 confidence). Movements need frame rate: at the 3–4 FPS a laptop CPU gives with pose and detection, a wave or clap must be slow and wide. A movement made while holding an object is `contact` plus the movement — "lift the bottle with your right hand" is `contact: [hand, bottle], side: right` + `gesture: lifting, side: right`.
+`hands_on_hips` also needs both knees in view: seated at a desk the pose model guesses hips under the table edge, and hands resting on the desk then look exactly like hands on hips (170 desk photos, no knee ever above 0.1 confidence). Movements need frame rate: at the 3-4 FPS a laptop CPU gives with pose and detection, a wave or clap must be slow and wide. A movement made while holding an object is `contact` plus the movement - "lift the bottle with your right hand" is `contact: [hand, bottle], side: right` + `gesture: lifting, side: right`.
 
-The stock detector loses a bottle once it is tipped past ~30° (1 of 10 rotated photos found at 30–45°, none at 60–90°), so a reliable `tilted` needs the object trained on the device with pouring photos.
+The stock detector loses a bottle once it is tipped past ~30° (1 of 10 rotated photos found at 30-45°, none at 60-90°), so a reliable `tilted` needs the object trained on the device with pouring photos.
 
 Every predicate also accepts `latch: bool` (default false). A latched predicate, once
 satisfied during a step activation, stays satisfied for the remainder of that activation.
@@ -219,11 +219,11 @@ Latching is per-activation state and is held by the engine, not the evaluator.
 **`min_conf` is a detection floor, not a decision threshold.** It asks whether the evidence
 exists at all; whether it is good enough to act on is the engine's call via `τ_complete`
 and `τ_abstain` (§7.3). Setting `min_conf` above `τ_abstain` makes the abstention path
-unreachable — a predicate could never be both satisfied and too weak to trust. The default
+unreachable - a predicate could never be both satisfied and too weak to trust. The default
 is 0.35, matching the detector's publish floor.
 
 Predicates are pure functions of the last W seconds of the event stream. They are
-side-effect free and independently unit-testable — this is what makes the engine
+side-effect free and independently unit-testable - this is what makes the engine
 developable with zero ML present.
 
 ---
@@ -240,7 +240,7 @@ developable with zero ML present.
 
 **Rationale (do not "optimise" this away).** Pose and detection models are trained almost
 entirely on gravity-aligned imagery. An inverted operator is not detected at all, so
-rotating model *output* into rack coordinates fixes nothing — there is no output. Rotating
+rotating model *output* into rack coordinates fixes nothing - there is no output. Rotating
 the *input* restores the models' training distribution. This is the entire orientation
 differentiator, and it costs one warp.
 
@@ -263,8 +263,8 @@ Object **states are modelled as distinct classes** (`red_box_open` vs `red_box_c
 not as a downstream classifier. This collapses a subsystem into the detector and makes
 predicates trivial.
 
-**What is reported depends on the procedure.** A *scene* procedure — rack markers, or any
-`contact`, `near`, `moved`, `dwell` or `count` predicate — gets every object in view: a
+**What is reported depends on the procedure.** A *scene* procedure - rack markers, or any
+`contact`, `near`, `moved`, `dwell` or `count` predicate - gets every object in view: a
 bottle standing in its home spot is small in frame and must still count. Any other
 procedure is a *presentation* ("show the bottle to the camera"): only objects filling at
 least `min_area` of the frame (default 6 %) are reported, every one of them, so two objects
@@ -283,14 +283,14 @@ detector.
 
 MediaPipe Hands, max 2 hands, detection confidence 0.5, tracking confidence 0.5.
 
-Contact is inferred, not learned in v1: a hand–object pair is in contact when any fingertip
+Contact is inferred, not learned in v1: a hand-object pair is in contact when any fingertip
 landmark falls within the object bbox expanded by 8%, held for ≥3 frames. Revisit only if
 measured precision is below 0.9.
 
 ### 6.4 Body pose
 
 YOLO11-pose, 17 COCO keypoints, consumed from the already-canonicalized frame so output is
-natively rack-relative. **MediaPipe Pose is deliberately not used** — its ARM support is
+natively rack-relative. **MediaPipe Pose is deliberately not used** - its ARM support is
 unreliable and it would not survive the EDGE port.
 
 Full SMPL-based mesh recovery is explicitly out of scope for real time. If the richer 3D
@@ -323,7 +323,7 @@ Per-step confidence is the minimum of contributing predicate confidences, temper
 against a held-out calibration set. Thresholds: `τ_complete = 0.75`, `τ_abstain = 0.50`.
 
 Below `τ_abstain`, the engine **must** publish `UNVERIFIED` and an `alert.unverified`. It
-must never silently advance on weak evidence. This is a hard safety requirement (FR-18) —
+must never silently advance on weak evidence. This is a hard safety requirement (FR-18) -
 a confidently wrong verdict is worse than no verdict.
 
 ### 7.4 Hysteresis
@@ -334,8 +334,8 @@ It is per-predicate overridable.
 
 ### 7.5 Completion frontier
 
-Only steps within `completion_lookahead` (default 2) of the frontier — the earliest step
-still awaiting a verdict — are evaluated. Active steps are always evaluated.
+Only steps within `completion_lookahead` (default 2) of the frontier - the earliest step
+still awaiting a verdict - are evaluated. Active steps are always evaluated.
 
 This is not an optimisation. Without it, any step whose predicates happen to describe the
 world's *resting* state fires on frame one: PROC-B's "close both boxes" is trivially true
@@ -357,7 +357,7 @@ preconditions were met. The system reports what it observed; it does not refuse 
 its own eyes. Precondition violations surface as **skip alerts on the steps that were
 passed over**, which is what the crew actually needs to hear.
 
-An `out_of_order` alert is reserved for genuine sequence inversion — a completing step whose
+An `out_of_order` alert is reserved for genuine sequence inversion - a completing step whose
 unmet precondition sits *later* in the procedure. Doing step 5 with step 4 undone is one
 mistake and raises one alert, not two. Alert noise is the fastest route to a muted
 assistant (NFR-04).
@@ -368,16 +368,16 @@ Setting `strict_preconditions: true` gates completion instead: the step enters
 ### 7.7 Wrong object
 
 Handling is not resting state. When the operator picks up an object that only a step
-beyond the lookahead uses, the engine raises `wrong_object` at once — "Wrong object: the
+beyond the lookahead uses, the engine raises `wrong_object` at once - "Wrong object: the
 phone is for step 3. Now: Pick up the bottle." Handled means a hand on it; in a
 presentation procedure, being presented is handling it. The rules that keep it quiet:
 
 - **Advisory.** No step changes state; putting the phone down is the right recovery.
-- **Earlier objects are fine.** Anything a step up to the lookahead uses is allowed — the
+- **Earlier objects are fine.** Anything a step up to the lookahead uses is allowed - the
   bottle is still in hand after "pick up the bottle". Objects the lookahead will judge are
   left to its verdict, so one mistake raises one alert.
 - **It must appear.** Something in view since the step began (plus a 2 s grace for the
-  camera settling) is the resting scene, not an action — the bottle standing at home at the
+  camera settling) is the resting scene, not an action - the bottle standing at home at the
   start of a run is the last step's state, not a skip.
 - **Held, then rationed.** Six consecutive frames of evidence, the right object not also in
   hand, and one alert per step and object per 10 s.
@@ -388,7 +388,7 @@ alerted: the engine only knows what the procedure names.
 ### 7.8 Wrong hand
 
 A step whose `gesture` or `contact` names a `side` raises `wrong_hand` (severity medium)
-when the other hand does it for six frames and the named hand is not doing it too — "Wrong
+when the other hand does it for six frames and the named hand is not doing it too - "Wrong
 hand: use your left hand. Now: Raise your left hand". Advisory, one per step per 10 s, and
 only for what started during the step: the right hand still up from the previous step
 ("raise your right hand") is not a mistake. `EngineConfig.wrong_hand_*` tunes or disables
@@ -434,7 +434,7 @@ Canonical JSON: sorted keys, no whitespace, UTF-8. The verifier walks the file a
 
 ### 9.3 Size discipline
 
-Short keys, no pretty-printing, no redundant fields, one record per state transition —
+Short keys, no pretty-printing, no redundant fields, one record per state transition -
 never per frame. Budget ≤50 KB per procedure hour (FR-43). The dashboard displays live
 bytes written alongside the equivalent raw-video figure at 8 Mbps (FR-47).
 
@@ -447,7 +447,7 @@ bytes written alongside the equivalent raw-video figure at 8 Mbps (FR-47).
 | Local recording | FFmpeg, H.264, 60 s segments, `sessions/<id>/video/seg_%05d.mp4` |
 | Crash safety | Segmented output; a kill loses at most one segment |
 | Live stream | FFmpeg → MediaMTX → RTSP at a configured host:port |
-| Dashboard preview | MJPEG over loopback HTTP — chosen for reliability under demo conditions, not efficiency |
+| Dashboard preview | MJPEG over loopback HTTP - chosen for reliability under demo conditions, not efficiency |
 | Overlay | Rendered into the dashboard preview only; recorded and streamed video stay clean |
 
 ---
@@ -510,12 +510,12 @@ runs the full pipeline with outbound non-loopback sockets blocked and asserts su
 
 Single entry point `python -m orbital_har`, config via `config/runtime.yaml` and env
 overrides. Model weights bundled, not downloaded. Cold start ≤30 s (FR-62). Frontend built
-to static assets and served by FastAPI from disk — no dev server, no CDN, in any
+to static assets and served by FastAPI from disk - no dev server, no CDN, in any
 demo-facing configuration.
 
 ---
 
-## Appendix A — Object vocabulary and procedures
+## Appendix A - Object vocabulary and procedures
 
 Both procedures share **one vocabulary**, so loading the second requires **no retraining**.
 This is what makes the D-02 demo honest.
@@ -535,7 +535,7 @@ coloured gloves (optional, improves hand segmentation).
 
 All locally purchasable. Total expected cost is low; see the implementation plan.
 
-### A.3 PROC-A — Nested sample retrieval (6 steps, the build target)
+### A.3 PROC-A - Nested sample retrieval (6 steps, the build target)
 
 | # | Step | Key predicates |
 |---|---|---|
@@ -548,7 +548,7 @@ All locally purchasable. Total expected cost is low; see the implementation plan
 
 Natural failure cases for the corpus: skipping 4 and going to 5; doing 3 before 2.
 
-### A.4 PROC-B — Dual-sample cross-transfer (10 steps, the live-load demo)
+### A.4 PROC-B - Dual-sample cross-transfer (10 steps, the live-load demo)
 
 Same objects, different sequence, and it exercises features PROC-A does not: an
 order-independent group, a dwell-based verification hold, and a multi-condition step.
@@ -558,10 +558,10 @@ order-independent group, a dwell-based verification hold, and a multi-condition 
 | 1 | Open the outer container | |
 | 2 | Remove the **yellow** box, place on marker Y | reversed vs PROC-A |
 | 3 | Remove the red box, place on marker R | |
-| 4 | Open the yellow box | **group `g1`** — order-independent |
-| 5 | Open the red box | **group `g1`** — order-independent |
+| 4 | Open the yellow box | **group `g1`** - order-independent |
+| 5 | Open the red box | **group `g1`** - order-independent |
 | 6 | Transfer the vial from red to yellow with tweezers | |
-| 7 | Hold the vial to camera for verification | `dwell` 2 s — new predicate type |
+| 7 | Hold the vial to camera for verification | `dwell` 2 s - new predicate type |
 | 8 | Return the vial to the red box | |
 | 9 | Close both boxes | two `detect` predicates ANDed |
 | 10 | Return both boxes to the container and close it | |

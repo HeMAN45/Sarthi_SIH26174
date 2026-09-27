@@ -3,7 +3,7 @@
 One decision here is worth more than the rest of the module: **the split is by
 clip, not by frame.** Footage of a procedure is recorded in takes, and adjacent
 frames of a take are near-identical. Splitting randomly puts a frame in train
-and its neighbour in val, and val mAP climbs to a number that means nothing —
+and its neighbour in val, and val mAP climbs to a number that means nothing -
 the model is being asked to recognise images it has effectively seen. Grouping
 by clip is the difference between an honest metric and a flattering one.
 
@@ -30,7 +30,7 @@ IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp"}
 SPLITS = ("train", "val")
 
 #: Per-class instance count below which a class is considered under-sampled.
-#: Chosen from the usual small-object-detection guidance, not from theory —
+#: Chosen from the usual small-object-detection guidance, not from theory -
 #: report the number and let the operator decide.
 MIN_INSTANCES_PER_CLASS = 300
 

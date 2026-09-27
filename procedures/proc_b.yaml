@@ -1,4 +1,4 @@
-# PROC-B — Dual-sample cross-transfer
+# PROC-B - Dual-sample cross-transfer
 #
 # The live-load demo (differentiator D-02). Same object vocabulary as PROC-A, so
 # loading this requires NO retraining. Exercises three things PROC-A does not:

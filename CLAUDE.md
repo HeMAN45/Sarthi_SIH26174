@@ -1,4 +1,4 @@
-# ORBITAL-HAR — project instructions
+# ORBITAL-HAR - project instructions
 
 On-board procedure supervision for BAS experiments.
 SIH 2026 problem statement **SIH26174** (ISRO / Department of Space) · Team Hashira.
@@ -25,7 +25,7 @@ in the same change. Docs that drift are worse than no docs.
 
 ---
 
-## Invariants — never violate these
+## Invariants - never violate these
 
 1. **Zero network at runtime.** No cloud inference, no hosted TTS, no CDN fonts or assets,
    no telemetry upload. Only loopback and the configured RTSP endpoint. CI enforces this.
@@ -34,7 +34,7 @@ in the same change. Docs that drift are worse than no docs.
 3. **The engine never guesses.** Below `τ_abstain` it publishes `UNVERIFIED` and says so.
    A confidently wrong verdict is worse than no verdict.
 4. **Canonicalize the input frame, not the output pose.** Rotating model output does not
-   work — the model never detected the inverted operator in the first place. See TRD §6.1.
+   work - the model never detected the inverted operator in the first place. See TRD §6.1.
 5. **Procedures are config, never code.** Nothing experiment-specific belongs in the engine.
    Adding a procedure means adding a YAML file.
 6. **Telemetry is append-only and hash-chained.** Never rewrite a record. Never skip a link.
@@ -44,7 +44,7 @@ in the same change. Docs that drift are worse than no docs.
 10. **Never degrade silently.** Every degradation is logged, surfaced in the UI, and given a
     reason.
 11. **Ambient state is not evidence.** Only steps near the frontier are judged. "Close both
-    boxes" is trivially true before anyone opened them — without the lookahead guard in
+    boxes" is trivially true before anyone opened them - without the lookahead guard in
     `Engine._eligible`, far-future steps fire on frame one. See TRD §7.5.
 12. **`min_conf` is a detection floor, not a decision threshold.** Raising it above
     `τ_abstain` makes the "cannot verify" path unreachable. Decisions belong to the engine's
@@ -71,7 +71,7 @@ code outside the boundary it is supposed to obey. If a script grows a class, mov
 ## Conventions
 
 Python 3.11, `uv`, ruff, type hints on public functions, pytest. Frontend React + TypeScript
-+ Vite, built to static assets served by FastAPI — **never a dev server in any demo-facing
++ Vite, built to static assets served by FastAPI - **never a dev server in any demo-facing
 configuration**.
 
 Config via `config/runtime.yaml` with env overrides. Never hardcode paths, thresholds, IPs,
@@ -83,7 +83,7 @@ merging anything touching `reasoning/`.
 ## Testing
 
 Predicates, state transitions, hash chain, and schema validation are unit tested. The
-**golden replay corpus** in `tests/fixtures/sessions/` is the primary regression suite —
+**golden replay corpus** in `tests/fixtures/sessions/` is the primary regression suite -
 recorded event streams with expected verdict sequences, covering clean runs, skips,
 out-of-order, occlusion, inversion, and stalls. Every case passes before any release tag.
 
@@ -99,11 +99,11 @@ contract and the offline guard are all green.
 
 Built and working:
 
-- **reasoning** — schema, nine predicates (incl. body `gesture`, `tilted`, picture-space
+- **reasoning** - schema, nine predicates (incl. body `gesture`, `tilted`, picture-space
   `moved`, hand `side` on `contact`), step state machine, crew skip/override, calibrated
-  abstention, free-float advisory (D-07), wrong-object and wrong-hand alerts (TRD §7.7–7.8),
+  abstention, free-float advisory (D-07), wrong-object and wrong-hand alerts (TRD §7.7-7.8),
   golden replay corpus.
-- **perception** — `rackframe` (ArUco + homography to rack millimetres, input-frame
+- **perception** - `rackframe` (ArUco + homography to rack millimetres, input-frame
   canonicalization), `pose` (YOLO11-pose), `hands` (palm-from-forearm plus geometric
   contact inference), `gestures` (thirteen body actions -- postures and movements --
   measured in the body's own frame, so they read the same upright, lying or inverted), `detect` (boxes, or an on-device
@@ -111,31 +111,31 @@ Built and working:
   payloads. Body tracking is on by default and drawn on the feed. Scene procedures get
   every object in view; presentation procedures every object held up close (TRD §6.2). A
   detector trained on the device runs *beside* the stock one, never instead of it.
-- **runtime** — SQLite store with migrations, hash-chained telemetry and verifier,
+- **runtime** - SQLite store with migrations, hash-chained telemetry and verifier,
   `session.LiveSession` (the composition root), `voice` (Piper, pre-synthesized,
   pre-emptible), `videoout` (mp4 + RTSP), `training` (on-device classifier or
   detector), `boxes` (stock-detector box proposals for detector training),
   `experiments` (builder experiments saved as procedure files in `data/experiments/`).
-- **server** — one FastAPI app; live endpoints degrade to 503 without a session.
-- **ui** — React console: Mission, Procedures (saved experiments, built-in library,
+- **server** - one FastAPI app; live endpoints degrade to 503 without a session.
+- **ui** - React console: Mission, Procedures (saved experiments, built-in library,
   builder with objects and body actions), Models (Classes →
   Capture → Train → Test → Deploy), Archive (history + chain verification). Flat
   engineering-console style, three themes (Graphite default, Slate, Daylight); Geist and
   Lucide bundled, nothing fetched at run time. Camera display mirrored by default.
-- **training** — perception draws its overlay on a copy, so training captures are clean;
+- **training** - perception draws its overlay on a copy, so training captures are clean;
   validation is held out; the test stage uses the live acceptance rule; the last model
   survives a restart. Background-class advice is surfaced before training. *Objects*
   mode trains a detector from proposed boxes with background photos as negatives, so
   a hand or arm is background by construction (`tests/test_boxes.py`).
-- **procedures** — `drink_water.yaml`: five steps from scene-state classes, one class
+- **procedures** - `drink_water.yaml`: five steps from scene-state classes, one class
   serving two steps; `drink_water_body.yaml`: the same five from contact, gestures and a
   home region, no training (`tests/test_drink_water.py`).
-- **lifecycle** — Ready → Live → Complete. The camera belongs to a run: off in Ready,
+- **lifecycle** - Ready → Live → Complete. The camera belongs to a run: off in Ready,
   powered by New run, released by End run (`tests/test_session.py`).
 
 Verify with `uv run orbital-har demo proc_a_skip_s4`, then `uv run pytest`.
 
-**PROC-A — the ISRO sample experiment — runs live.** `tests/test_pipeline.py` is the
+**PROC-A - the ISRO sample experiment - runs live.** `tests/test_pipeline.py` is the
 proof: real rack localisation and contact inference satisfying its `contact` and `near`
 steps with no camera and no detector in the loop.
 
@@ -143,13 +143,13 @@ steps with no camera and no detector in the loop.
 stand-in (COCO / YOLO-World). Props to footage to labels to a trained 11-class BAS model
 is the critical path, and nothing downstream of it can start until the prop kit exists.
 `datagen/` (Blender synthetic pipeline) is not built and may be descoped in favour of
-real footage — decide before committing to it.
+real footage - decide before committing to it.
 
 ## Working notes
 
 - Prop kit is the critical path. Footage blocks labelling, which blocks training, which
   blocks every differentiator.
-- Dev machine has **150 GB free** — respect the storage budget in TRD §1.1. JPEG renders,
+- Dev machine has **150 GB free** - respect the storage budget in TRD §1.1. JPEG renders,
   prune weekly.
 - Edge hardware (Jetson) is not yet purchased. Decision gate is 15 November. Until then,
   target DEV and keep the export path clean.

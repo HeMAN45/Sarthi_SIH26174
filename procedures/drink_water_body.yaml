@@ -1,4 +1,4 @@
-# DRINK-BODY — drink water, judged from the body (no training needed)
+# DRINK-BODY - drink water, judged from the body (no training needed)
 #
 # The same five steps as DRINK-WATER, but read from what the body does rather
 # than from a trained scene classifier: the stock detector finds the bottle,
@@ -19,7 +19,7 @@
 
 procedure:
   id: drink_water_body
-  name: Drink water — body tracking, no training
+  name: Drink water - body tracking, no training
   version: 1
   rack_markers: DICT_4X4_50
   vocabulary: coco-standin

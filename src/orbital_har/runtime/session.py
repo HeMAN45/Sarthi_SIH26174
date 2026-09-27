@@ -543,7 +543,8 @@ class LiveSession:
         """
         if self.detector.open_vocab:
             return []
-        return sorted(proc.vocabulary_classes - set(self.detector.all_classes))
+        known = set(self.detector.all_classes) | set(proc.colour_classes)
+        return sorted(proc.vocabulary_classes - known)
 
     # -------------------------------------------------------------- internals
 
@@ -627,6 +628,8 @@ class LiveSession:
         self.log = None
 
     def _configure_for(self, proc: Procedure) -> None:
+        if hasattr(self.detector, "set_colours"):
+            self.detector.set_colours(proc.colour_classes)
         want_rack, want_pose = perception_needs(proc)
         self.pipeline.configure(
             want_rack=want_rack,

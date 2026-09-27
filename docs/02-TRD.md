@@ -160,6 +160,8 @@ objects:
   - id: string
     classes: [string]           # detector classes representing this object's states
     tether_required: bool       # optional, drives free-float advisory
+    color: blue                 # optional: found by its colour, no model (red, orange,
+                                #   yellow, green, blue, purple)
 
 regions:                        # optional; required by `dwell`
   - id: string
@@ -270,6 +272,13 @@ procedure is a *presentation* ("show the bottle to the camera"): only objects fi
 least `min_area` of the frame (default 6 %) are reported, every one of them, so two objects
 can be shown at once and a book lying at the back of the desk is not "presented". The
 largest rejected candidate is drawn with a *hold closer* hint. `Procedure.is_scene` decides.
+
+**Objects found by colour.** An object declared with `color:` is found without any model:
+pixels of that hue, vivid enough to not be a shadow, grouped into blobs, and only a compact
+solid blob counts (0.2 to 20 % of the frame, no longer than 3 to 1, at least 45 % filled), so
+a shirt or a table edge of the same colour is dropped. The largest such blob is the object.
+On 170 real desk photos with no coloured block in view it fired twice, both specks far in
+the background. A blue cube or the sample experiment's red and yellow boxes need no training.
 
 **Objects trained on this device join the stock ones.** A detector trained in the Models
 tab runs beside the stock COCO-80 model rather than replacing it; each model is asked only

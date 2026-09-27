@@ -14,7 +14,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![YOLO11](https://img.shields.io/badge/Ultralytics-YOLO11-111F68)
 ![Offline](https://img.shields.io/badge/network_at_runtime-none-2e9b55)
-![Tests](https://img.shields.io/badge/tests-453_passing-2e9b55)
+![Tests](https://img.shields.io/badge/tests-465_passing-2e9b55)
 
 [Overview](#overview) · [Features](#features) · [Quick start](#quick-start) · [Guide](#guide) · [Tech stack](#tech-stack) · [Architecture](#architecture) · [Docs](#documentation)
 
@@ -62,7 +62,7 @@ instead of raw video.
 |---|---|
 | **Human activity recognition** | 13 body actions read from the skeleton: 9 postures and 4 movements (wave, lift, lower, clap). One-hand actions can require the **left or right** hand. |
 | **Hand and object interaction** | Knows which hand touches which object, and what is done with it: **show, hold, pour, move**, or put it back in its place. |
-| **Objects** | 80 everyday objects out of the box, several at once. Teach it your own objects or object states (cap on, cap off) from photos or a short video, no box drawing. |
+| **Objects** | 80 everyday objects out of the box, several at once. Teach it your own objects or object states (cap on, cap off) from photos or a short video, no box drawing. A solid-coloured block, like a blue cube, is found by its colour with no training at all. |
 | **Orientation-agnostic** | Every posture is measured against the body's own axis, so a crew member upside down raises a hand exactly as one standing does. |
 | **Step-by-step supervision** | Steps are judged in order with confidence thresholds; the system says *cannot verify* rather than guess. |
 | **Spoken alerts** | Wrong object, wrong hand, skipped step, out of sequence, no progress, cannot verify. |
@@ -178,6 +178,7 @@ run; after that nothing touches the network.
 | **Crew fitness and hydration check** | Left and right hand steps, a wave, lifting the bottle while holding it; the wrong-hand alert | none |
 | **Potable water sampling** | Two objects in one step; the wrong-object alert | none |
 | **Drink water** | Pick up, open, drink, close, put back. A body-only version and a trained cap-state version | optional |
+| **Blue cube from A to B** | Pick the cube up from position A with the right hand, place it on B. Found by colour | none |
 | **Nested sample retrieval (PROC-A)** | The problem statement's own example on a marked payload rack | props + model |
 
 The **[experiment catalogue (PDF)](docs/experiments/SARTHI-Experiment-Catalogue.pdf)** describes
@@ -219,7 +220,7 @@ second with detection and pose, so make movements slow and wide.
 | **Voice** | **Piper** text to speech, on device, pre-rendered prompts |
 | **Video** | OpenCV mp4 recording · FFmpeg RTSP publishing |
 | **Dashboard** | **React 19** · TypeScript · Vite · Lucide icons · Geist font bundled |
-| **Quality** | pytest (453 tests, golden replay corpus) · ruff · import-linter · oxlint · GitHub Actions |
+| **Quality** | pytest (465 tests, golden replay corpus) · ruff · import-linter · oxlint · GitHub Actions |
 
 ---
 
@@ -296,7 +297,7 @@ is **SARTHI**.
 ## Testing and quality
 
 ```bash
-uv run pytest                  # 453 tests, including the golden replay corpus
+uv run pytest                  # 465 tests, including the golden replay corpus
 uv run ruff check .            # lint
 uv run lint-imports            # perception and reasoning never import each other
 uv run orbital-har demo proc_a_skip_s4    # replay a recorded run with a skipped step

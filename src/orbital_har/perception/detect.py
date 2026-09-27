@@ -28,6 +28,8 @@ from typing import Any
 import cv2
 import numpy as np
 
+from orbital_har.perception import colours
+
 #: The "nothing is being presented" escape hatch. Required for classifiers.
 BACKGROUND_CLASS = "background"
 
@@ -226,6 +228,8 @@ class Detector:
         self.names = model.names
         #: What the stock model can find.
         self.base_classes = COCO80 if open_vocab else sorted(set(model.names.values()))
+        #: Classes found by colour, not by a model: class -> colour.
+        self.colour_classes: dict[str, str] = {}
         self.all_classes = list(self.base_classes)
 
     # ------------------------------------------------------------------ modes
@@ -240,6 +244,13 @@ class Detector:
         if self.trained_model is None:
             return []
         return sorted(set(self.trained_model.names.values()) - self.retired)
+
+    def set_colours(self, mapping: dict[str, str]) -> None:
+        """The loaded procedure's colour-found classes, replacing the last one's."""
+        old = set(self.colour_classes)
+        self.colour_classes = dict(mapping)
+        keep = [c for c in self.all_classes if c not in old]
+        self.all_classes = sorted(set(keep) | set(self.colour_classes))
 
     def retire(self, names: set[str]) -> None:
         """Stop reporting trained classes the operator has deleted."""
@@ -339,8 +350,13 @@ class Detector:
         # Each model is asked only for what the procedure wants, and a model
         # with nothing wanted from it is not run at all: a body-actions-only
         # procedure costs no detection.
-        mine = set(self.trained_classes) & wanted
-        cands = self._candidates(self.model, self.names, frame, wanted - mine)
+        painted = {c: col for c, col in self.colour_classes.items() if c in wanted}
+        mine = set(self.trained_classes) & wanted - set(painted)
+        cands = self._candidates(self.model, self.names, frame, wanted - mine - set(painted))
+        cands += [
+            Candidate(cls=c, conf=conf, bbox=box, area_frac=area)
+            for c, conf, box, area in colours.find(frame, painted)
+        ]
         if mine:
             cands += self._candidates(self.trained_model, self.trained_model.names, frame, mine)
         cands.sort(key=lambda c: c.area_frac, reverse=True)

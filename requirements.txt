@@ -1,0 +1,272 @@
+# SARTHI (orbital-har) -- everything needed to RUN the system, pinned to the
+# exact versions the test suite passes with. Generated from uv.lock.
+#
+# Python 3.11 only (the project requires >=3.11,<3.12).
+#
+# Install, from the repository root:
+#   python -m venv .venv
+#   .venv\Scripts\activate                 (Windows)
+#   source .venv/bin/activate              (Linux / macOS)
+#   pip install -r requirements.txt        (also installs SARTHI itself: "-e .")
+#
+# One-time downloads (kept out of git):
+#   model weights   yolo11n.pt and yolo11n-pose.pt download by themselves on the
+#                   first run (internet needed once; offline after that)
+#   voice           python -m piper.download_voices en_US-lessac-medium --data-dir models/voices
+#   dashboard       cd ui && npm install && npm run build     (Node.js 20.19+, 22 LTS is fine)
+#
+# Run:    python scripts/web_demo.py      then open http://localhost:8000
+# Tests:  pip install pytest pytest-asyncio httpx      then  python -m pytest
+#
+# Using uv instead of pip:  uv sync --all-extras --group dev
+# Regenerate after changing dependencies (then put this header back on top):
+#   uv export --format requirements.txt --all-extras --no-dev --no-hashes --no-header -o requirements.txt
+
+-e .
+absl-py==2.5.0
+    # via mediapipe
+annotated-doc==0.0.5
+    # via fastapi
+annotated-types==0.8.0
+    # via pydantic
+anyio==4.15.1
+    # via
+    #   httpx
+    #   starlette
+    #   watchfiles
+certifi==2026.7.22
+    # via
+    #   httpcore
+    #   httpx
+    #   mediapipe
+    #   requests
+cffi==2.1.1
+    # via sounddevice
+charset-normalizer==3.5.1
+    # via requests
+click==8.5.0
+    # via uvicorn
+cloudpickle==3.1.2
+    # via ultralytics
+contourpy==1.3.3
+    # via matplotlib
+cuda-bindings==13.4.2 ; sys_platform == 'linux'
+    # via torch
+cuda-pathfinder==1.8.2 ; sys_platform == 'linux'
+    # via cuda-bindings
+cuda-toolkit==13.0.3.0 ; sys_platform == 'linux'
+    # via torch
+cycler==0.12.1
+    # via matplotlib
+fastapi==0.141.1
+    # via orbital-har
+filelock==4.0.1
+    # via
+    #   torch
+    #   ultralytics
+flatbuffers==25.12.19
+    # via
+    #   mediapipe
+    #   onnxruntime
+fonttools==4.65.0
+    # via matplotlib
+fsspec==2026.9.0
+    # via torch
+greenlet==3.5.6 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64'
+    # via sqlalchemy
+h11==0.16.0
+    # via
+    #   httpcore
+    #   uvicorn
+httpcore==1.0.9
+    # via httpx
+httptools==0.8.0
+    # via uvicorn
+httpx==0.28.1
+    # via ultralytics-platform
+idna==3.20
+    # via
+    #   anyio
+    #   httpx
+    #   requests
+jinja2==3.1.6
+    # via torch
+kiwisolver==1.5.1
+    # via matplotlib
+markdown-it-py==4.2.0
+    # via rich
+markupsafe==3.0.3
+    # via jinja2
+matplotlib==3.11.2
+    # via
+    #   mediapipe
+    #   ultralytics
+mdurl==0.1.2
+    # via markdown-it-py
+mediapipe==0.10.35
+    # via orbital-har
+mpmath==1.3.0
+    # via sympy
+networkx==3.6.1
+    # via torch
+numpy==2.4.6
+    # via
+    #   contourpy
+    #   matplotlib
+    #   mediapipe
+    #   onnxruntime
+    #   opencv-contrib-python
+    #   opencv-python
+    #   torchvision
+    #   ultralytics
+    #   ultralytics-thop
+nvidia-cublas==13.1.1.3 ; sys_platform == 'linux'
+    # via
+    #   cuda-toolkit
+    #   nvidia-cudnn-cu13
+    #   nvidia-cusolver
+nvidia-cuda-cupti==13.0.85 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-cuda-nvrtc==13.0.88 ; sys_platform == 'linux'
+    # via
+    #   cuda-toolkit
+    #   nvidia-cublas
+nvidia-cuda-runtime==13.0.96 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-cudnn-cu13==9.24.0.43 ; sys_platform == 'linux'
+    # via torch
+nvidia-cufft==12.0.0.61 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-cufile==1.15.1.6 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-curand==10.4.0.35 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-cusolver==12.0.4.66 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-cusparse==12.6.3.3 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via
+    #   cuda-toolkit
+    #   nvidia-cusolver
+nvidia-cusparselt-cu13==0.8.1 ; sys_platform == 'linux'
+    # via torch
+nvidia-ml-py==13.610.43
+    # via ultralytics
+nvidia-nccl-cu13==2.30.7 ; sys_platform == 'linux'
+    # via torch
+nvidia-nvjitlink==13.4.92 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via
+    #   cuda-toolkit
+    #   nvidia-cufft
+    #   nvidia-cusolver
+    #   nvidia-cusparse
+nvidia-nvshmem-cu13==3.4.5 ; sys_platform == 'linux'
+    # via torch
+nvidia-nvtx==13.0.85 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+onnxruntime==1.30.0
+    # via piper-tts
+opencv-contrib-python==4.14.0.94
+    # via
+    #   mediapipe
+    #   orbital-har
+opencv-python==5.0.0.93
+    # via ultralytics
+packaging==26.3
+    # via
+    #   matplotlib
+    #   onnxruntime
+pathvalidate==3.3.1
+    # via piper-tts
+pillow==12.3.0
+    # via
+    #   matplotlib
+    #   torchvision
+    #   ultralytics
+piper-tts==1.8.0
+    # via orbital-har
+polars==1.44.2
+    # via ultralytics
+polars-runtime-32==1.44.2
+    # via polars
+protobuf==7.36.2
+    # via onnxruntime
+psutil==7.2.2
+    # via ultralytics
+pycparser==3.0 ; implementation_name != 'PyPy'
+    # via cffi
+pydantic==2.13.5
+    # via
+    #   fastapi
+    #   orbital-har
+pydantic-core==2.46.5
+    # via pydantic
+pygments==2.21.0
+    # via rich
+pyparsing==3.3.2
+    # via matplotlib
+python-dateutil==2.9.0.post0
+    # via matplotlib
+python-dotenv==1.2.3
+    # via uvicorn
+python-multipart==0.0.32
+    # via orbital-har
+pyyaml==6.0.3
+    # via
+    #   orbital-har
+    #   ultralytics
+    #   uvicorn
+requests==2.34.2
+    # via ultralytics
+rich==14.3.4
+    # via orbital-har
+setuptools==84.0.0
+    # via torch
+six==1.17.0
+    # via python-dateutil
+sounddevice==0.5.6
+    # via mediapipe
+sqlalchemy==2.0.54
+    # via orbital-har
+starlette==1.6.0
+    # via fastapi
+sympy==1.14.0
+    # via torch
+torch==2.14.0
+    # via
+    #   torchvision
+    #   ultralytics
+    #   ultralytics-thop
+torchvision==0.29.0
+    # via ultralytics
+triton==3.8.0 ; sys_platform == 'linux'
+    # via torch
+typing-extensions==4.16.0
+    # via
+    #   anyio
+    #   fastapi
+    #   pydantic
+    #   pydantic-core
+    #   sqlalchemy
+    #   starlette
+    #   torch
+    #   typing-inspection
+typing-inspection==0.4.4
+    # via
+    #   fastapi
+    #   pydantic
+ultralytics==8.4.156
+    # via orbital-har
+ultralytics-platform==0.1.48
+    # via ultralytics
+ultralytics-thop==2.1.6
+    # via ultralytics
+urllib3==2.8.0
+    # via requests
+uvicorn==0.53.0
+    # via orbital-har
+uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
+    # via uvicorn
+watchfiles==1.2.0
+    # via uvicorn
+websockets==17.1
+    # via uvicorn

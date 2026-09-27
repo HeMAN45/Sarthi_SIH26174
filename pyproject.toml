@@ -19,6 +19,9 @@ server = [
     "fastapi>=0.115,<1",
     "uvicorn[standard]>=0.31,<1",
     "sqlalchemy>=2.0,<3",
+    # FastAPI needs it for form fields and file uploads (Models tab: add class,
+    # upload photos or a video). Without it the server refuses to start.
+    "python-multipart>=0.0.9,<1",
 ]
 voice = [
     "piper-tts>=1.8,<2",

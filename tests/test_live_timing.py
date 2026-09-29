@@ -11,9 +11,10 @@ from __future__ import annotations
 import pytest
 
 from orbital_har.core.types import Event, EventType, StepState
+from orbital_har.reasoning.engine import HOLD_FPS
 from orbital_har.reasoning.schema import Procedure
 from orbital_har.reasoning.window import FrameSnapshot, Window
-from orbital_har.runtime.session import HOLD_FPS, make_engine
+from orbital_har.runtime.session import make_engine
 from orbital_har.simkit.fixtures import ALL_FIXTURES, build
 from tests.conftest import PROCEDURES
 
@@ -56,11 +57,12 @@ class Feed:
         seen: tuple[str, ...] = ("bottle",),
         touch: bool = False,
         gestures: tuple[str, ...] = (),
+        conf: float = 0.9,
     ) -> None:
         for _ in range(n):
             self.fid += 1
             t = self.fid / self.fps
-            objs = [] if at is None else [{"cls": c, "conf": 0.9, "bbox": list(at)} for c in seen]
+            objs = [] if at is None else [{"cls": c, "conf": conf, "bbox": list(at)} for c in seen]
             events = [
                 (EventType.FRAME.value, {"frame_id": self.fid, "w": 640, "h": 480}),
                 (EventType.DETECTION.value, {"frame_id": self.fid, "objects": objs}),
@@ -152,24 +154,11 @@ def test_clean_mode_hears_a_skipped_step() -> None:
     assert f.alerts == [("skip", "s2")]
 
 
-_UNREACHABLE = pytest.mark.xfail(
-    strict=True,
-    reason="live tau_abstain (0.35) equals DETECTION_FLOOR, so satisfied evidence is "
-    "never below it and UNVERIFIED cannot happen in a live run (invariant #12)",
-)
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        pytest.param(n, marks=_UNREACHABLE) if n == "proc_a_unverified_s4" else n
-        for n in sorted(ALL_FIXTURES)
-    ],
-)
-def test_the_golden_corpus_holds_under_the_live_clean_mode(name: str) -> None:
+@pytest.mark.parametrize("name", sorted(ALL_FIXTURES))
+def test_the_golden_corpus_holds_under_the_live_configuration(name: str) -> None:
     fixture = build(name)
     proc = Procedure.load(PROCEDURES / f"{fixture.procedure}.yaml")
-    engine = make_engine(proc, "clean")
+    engine = make_engine(proc, fixture.mode)
     alerts = []
     for event in fixture.scenario.events:
         alerts += [o for o in engine.on_event(event) if o.type == EventType.ALERT.value]
@@ -181,6 +170,25 @@ def test_the_golden_corpus_holds_under_the_live_clean_mode(name: str) -> None:
     assert [(a.payload["kind"], a.payload["step_id"]) for a in alerts] == [
         tuple(a) for a in fixture.expected.alerts
     ]
+
+
+def test_weak_evidence_of_the_current_step_cannot_be_verified() -> None:
+    # Seen at 0.40: above the detection floor, below tau_abstain. Live that
+    # used to be impossible, because tau_abstain sat on the floor itself.
+    f = Feed(Procedure.load(PROCEDURES / "drink_water.yaml"), fps=15)
+    f.frames(8, at=HOME, seen=("bottle", "bottle_closed"), touch=True)
+    f.frames(40, at=AWAY, seen=("bottle_open",), conf=0.40)
+    assert f.engine.state_of("s2") == StepState.UNVERIFIED
+    assert f.alerts == [("unverified", "s2")]
+
+
+def test_faint_evidence_of_the_next_step_is_not_asked_about() -> None:
+    # Still on "pick up the bottle"; the open bottle is s2's evidence and s2 is
+    # in the lookahead. Cannot-verify is about the step the crew is doing.
+    f = Feed(Procedure.load(PROCEDURES / "drink_water.yaml"), fps=15)
+    f.frames(40, at=HOME, seen=("bottle_open",), conf=0.40)
+    assert f.engine.state_of("s2") == StepState.PENDING
+    assert f.alerts == []
 
 
 def test_strict_mode_holds_the_early_step_out_of_sequence() -> None:

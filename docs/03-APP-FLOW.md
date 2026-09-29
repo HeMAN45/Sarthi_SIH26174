@@ -333,8 +333,11 @@ of the jury.
 video → close DB → stop child processes.
 
 **Crash:** telemetry and bus files are append-only and fsynced every 2 s, so at most 2 s is
-lost. Video loses at most one 60 s segment. On restart, sessions left open are marked
-`aborted` with `crash_recovered = true`. No session is ever silently lost.
+lost. On restart, sessions left open are marked `crashed` with `crash_recovered = 1`. No
+session is ever silently lost. The video is: recording is one mp4 per run, indexed when
+it is closed, so a kill loses it (segmented recording, TRD §9, is not built). Recovery
+checks the file and notes `video lost` on the session; the Archive shows the note and
+refuses the download with it, instead of offering a file no player opens.
 
 ---
 

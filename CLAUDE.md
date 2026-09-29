@@ -74,8 +74,10 @@ Python 3.11, `uv`, ruff, type hints on public functions, pytest. Frontend React 
 + Vite, built to static assets served by FastAPI - **never a dev server in any demo-facing
 configuration**.
 
-Config via `config/runtime.yaml` with env overrides. Never hardcode paths, thresholds, IPs,
-or model filenames.
+Runtime settings are launcher flags (`scripts/web_demo.py`). The engine's live thresholds,
+holds and lookahead live in one place, `reasoning.engine.live_config`. The
+`config/runtime.yaml` the TRD describes is not built. Never scatter paths, thresholds, IPs
+or model filenames through the code.
 
 Branches `feat/<area>-<slug>`, conventional commits. Golden replay tests must pass before
 merging anything touching `reasoning/`.
@@ -83,9 +85,14 @@ merging anything touching `reasoning/`.
 ## Testing
 
 Predicates, state transitions, hash chain, and schema validation are unit tested. The
-**golden replay corpus** in `tests/fixtures/sessions/` is the primary regression suite -
-recorded event streams with expected verdict sequences, covering clean runs, skips,
-out-of-order, occlusion, inversion, and stalls. Every case passes before any release tag.
+**golden corpus** is the primary regression suite: scripted scenarios in
+`simkit/fixtures.py`, each with the verdicts the engine must reach - clean PROC-A and
+PROC-B runs, a skip, weak evidence (cannot verify), rack markers lost, a stall, and a step
+done out of sequence then recovered (Strict). Every case is replayed under the engine's
+defaults (`tests/test_golden.py`) and under the live configuration
+(`tests/test_live_timing.py`); `orbital-har fixture <name>` writes one out as a JSONL
+stream. Not yet covered: recorded (rather than scripted) runs, and an inverted operator,
+which is a perception question. Every case passes before any release tag.
 
 The reasoning layer is developed and tested entirely without a camera or a model. If you
 find yourself needing perception to test the engine, the seam has been broken.
@@ -94,7 +101,7 @@ find yourself needing perception to test the engine, the seam has been broken.
 
 ## Current state
 
-**The pipeline runs end to end on a camera.** 482 tests pass; ruff, the import-boundary
+**The pipeline runs end to end on a camera.** 499 tests pass; ruff, the import-boundary
 contract and the offline guard are all green.
 
 Built and working:
@@ -102,7 +109,10 @@ Built and working:
 - **reasoning** - schema, nine predicates (incl. body `gesture`, `tilted`, picture-space
   `moved`, hand `side` on `contact`), step state machine, crew skip/override, calibrated
   abstention, free-float advisory (D-07), wrong-object and wrong-hand alerts (TRD §7.7-7.8),
-  golden replay corpus.
+  golden corpus. Live runs use `live_config`: one step of lookahead, holds as durations,
+  evidence never inherited from the step before (TRD §7.4-7.5). `orbital-har eval --save`
+  records its scores on the corpus: 38/38 verdicts, 4/4 alerts, 0 false alerts per 10 min.
+  Those are scripted cases, not footage: they prove the reasoning, not the camera.
 - **perception** - `rackframe` (ArUco + homography to rack millimetres, input-frame
   canonicalization), `pose` (YOLO11-pose), `hands` (palm-from-forearm plus geometric
   contact inference), `colours` (solid-coloured blocks found by hue, no model), `gestures` (thirteen body actions -- postures and movements --
@@ -135,9 +145,11 @@ Built and working:
 
 Verify with `uv run orbital-har demo proc_a_skip_s4`, then `uv run pytest`.
 
-**PROC-A - the ISRO sample experiment - runs live.** `tests/test_pipeline.py` is the
-proof: real rack localisation and contact inference satisfying its `contact` and `near`
-steps with no camera and no detector in the loop.
+**PROC-A - the ISRO sample experiment - cannot run live yet.** Its perception-to-engine
+seam is proven (`tests/test_pipeline.py`: real rack localisation and contact inference
+satisfy its `contact` and `near` steps with no camera and no detector in the loop), but
+the stock detector knows none of its nine classes, so live it never gets past step 1
+(12 attempts). It runs live once its model is trained.
 
 **The remaining deliverable is the trained model.** Detection is still a pretrained
 stand-in (COCO / YOLO-World). Props to footage to labels to a trained 11-class BAS model
@@ -147,6 +159,9 @@ real footage - decide before committing to it.
 
 ## Working notes
 
+- Ultralytics installs its own top-level `tests` package into site-packages. A script run
+  from outside the repo root that does `from tests.conftest import ...` gets theirs and fails;
+  run such scripts from the repo root (pytest is unaffected).
 - Prop kit is the critical path. Footage blocks labelling, which blocks training, which
   blocks every differentiator.
 - Dev machine has **150 GB free** - respect the storage budget in TRD §1.1. JPEG renders,

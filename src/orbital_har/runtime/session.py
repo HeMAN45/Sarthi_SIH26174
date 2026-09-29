@@ -24,12 +24,18 @@ from orbital_har.core.types import Event, EventType, StepState
 from orbital_har.perception.capture import Camera, placeholder
 from orbital_har.perception.detect import Detector
 from orbital_har.perception.pipeline import DEFAULT_IMGSZ, PerceptionPipeline
-from orbital_har.reasoning.engine import Engine, EngineConfig
+from orbital_har.reasoning.engine import LIVE_LOOKAHEAD, Engine, live_config
 from orbital_har.reasoning.schema import Procedure
 from orbital_har.runtime.experiments import compose
 from orbital_har.runtime.store import Store
 from orbital_har.runtime.telemetry import TelemetryWriter
-from orbital_har.runtime.videoout import DEFAULT_RECORD_HEIGHT, Recorder, record_size
+from orbital_har.runtime.videoout import (
+    DEFAULT_RECORD_HEIGHT,
+    VIDEO_LOST,
+    Recorder,
+    playable,
+    record_size,
+)
 from orbital_har.runtime.voice import Voice
 
 #: Upper bound on the capture loop. Supervision needs tens of hertz, not
@@ -39,19 +45,6 @@ LOOP_PERIOD_S = 1.0 / 30.0
 #: Loop period while Ready. Nothing is captured or judged; the dashboard only
 #: needs its state kept fresh, and that should cost nothing.
 STANDBY_PERIOD_S = 0.1
-
-#: How far past the current step each run mode judges evidence (TRD section 7.5).
-#: Both look one step ahead, so doing the next step early is always caught:
-#: Clean completes it and raises a skip alert for the step passed over; Strict
-#: holds it out of sequence instead. Clean used to judge the current step
-#: alone, which made a skipped step invisible until its timeout.
-_MODE_LOOKAHEAD = {"clean": 1, "strict": 1}
-
-#: The frame rate procedure holds are written for (a laptop webcam through
-#: detection and pose, as the procedure tests replay it). Live, a hold means
-#: the time its frames span at this rate, so a slower machine does not make the
-#: operator freeze longer: twelve frames is 0.73 s at 4 FPS as at 15.
-HOLD_FPS = 15.0
 
 #: Session lifecycle (docs/03-APP-FLOW.md section 3). The camera is on in LIVE
 #: and COMPLETE and off in READY -- ending a run releases the device.
@@ -66,17 +59,8 @@ PHASE_COMPLETE = "complete"
 
 
 def make_engine(proc: Procedure, mode: str = "clean") -> Engine:
-    return Engine(
-        proc,
-        EngineConfig(
-            tau_complete=0.60,
-            tau_abstain=0.35,
-            window_capacity=120,
-            strict_preconditions=(mode == "strict"),
-            completion_lookahead=_MODE_LOOKAHEAD.get(mode, 1),
-            hold_fps=HOLD_FPS,
-        ),
-    )
+    """An engine configured as every live run is (``reasoning.engine.live_config``)."""
+    return Engine(proc, live_config(mode))
 
 
 def perception_needs(proc: Procedure) -> tuple[bool, bool]:
@@ -178,6 +162,7 @@ class SessionLog:
         rtsp_url: str | None,
         record: bool,
         record_height: int = DEFAULT_RECORD_HEIGHT,
+        started_t: float | None = None,
     ) -> None:
         self.id = datetime.now(UTC).strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4]
         self.dir = root / self.id
@@ -186,7 +171,10 @@ class SessionLog:
         self.proc = proc
         self.closed = False
         self.alerts = 0
-        self.started = time.time()
+        #: When the run began: the capture time of its first frame. Every record
+        #: is stamped on that same clock, so the log never runs backwards -- it
+        #: used to, whenever opening the camera took longer than writing this.
+        self.started = started_t if started_t is not None else time.time()
         self.ended: float | None = None
 
         self.telemetry = TelemetryWriter(self.dir / "telemetry.jsonl").open()
@@ -220,6 +208,7 @@ class SessionLog:
                 "mode": mode,
                 "steps_total": len(proc.steps),
             },
+            t=datetime.fromtimestamp(self.started, UTC).isoformat(),
         )
 
         # An RTSP URL alone used to produce no stream at all, because the whole
@@ -286,6 +275,8 @@ class SessionLog:
             "frames": self.recorder.frames if self.recorder else 0,
             "video_bytes": video_bytes,
             "rtsp": bool(self.recorder and self.recorder.rtsp_active),
+            # Read after ``rtsp_active``, which is what notices a dead stream.
+            "rtsp_error": self.recorder.rtsp_error if self.recorder else None,
             "elapsed_s": self.elapsed_s,
             # The chain head. Anyone holding it can later prove the log they are
             # shown is the log that was written.
@@ -440,10 +431,18 @@ class LiveSession:
         self.finalize()
 
     def recover_orphans(self) -> int:
-        """Retire sessions left 'running' by a previous hard kill."""
-        orphans = [r["id"] for r in self.store.list_sessions(limit=500) if r["status"] == "running"]
-        for sid in orphans:
-            self.store.mark_crashed(sid)
+        """Retire sessions left 'running' by a previous hard kill.
+
+        A kill also leaves the recording unindexed. Say so on the session
+        rather than let the Archive offer a file that will not play.
+        """
+        orphans = [r for r in self.store.list_sessions(limit=500) if r["status"] == "running"]
+        for row in orphans:
+            video = Path(row["session_dir"]) / "run.mp4" if row.get("session_dir") else None
+            lost = video is not None and video.exists() and not playable(video)
+            if lost:
+                print(f"[session] {row['id']}: {VIDEO_LOST}")
+            self.store.mark_crashed(row["id"], notes=VIDEO_LOST if lost else None)
         return len(orphans)
 
     # ---------------------------------------------------------------- control
@@ -454,7 +453,7 @@ class LiveSession:
         Starting while a run is live seals that run first, judged by its own
         engine -- a restart never erases what the previous run established.
         """
-        self._pending.append(("start", mode if mode in _MODE_LOOKAHEAD else "clean"))
+        self._pending.append(("start", mode if mode in LIVE_LOOKAHEAD else "clean"))
 
     def end_run(self) -> None:
         """Seal the run and release the camera. The system returns to Ready."""
@@ -708,7 +707,7 @@ class LiveSession:
         self._alert_count = 0
         self._new_session = True
 
-    def _start_session(self, size: tuple[int, int]) -> None:
+    def _start_session(self, size: tuple[int, int], started_t: float) -> None:
         """Begin a new logged run. Every path here has already sealed the last."""
         self._seal()
         try:
@@ -721,6 +720,7 @@ class LiveSession:
                 self.rtsp_url,
                 self.record,
                 self.record_height,
+                started_t=started_t,
             )
         except Exception as exc:
             print(f"[session] could not start: {exc}")
@@ -773,11 +773,15 @@ class LiveSession:
 
             fid += 1
             raw_frame, frame = self.camera.frame_or_placeholder()
+            # When this frame was seen. The first read after the camera powers
+            # on can block for seconds; stamping the iteration's start instead
+            # dated a run's first verdicts before the run itself began.
+            captured = time.time()
             have_cam = raw_frame is not None
             live = self.phase == PHASE_LIVE
 
             if live and self._new_session and have_cam:
-                self._start_session((frame.shape[1], frame.shape[0]))
+                self._start_session((frame.shape[1], frame.shape[0]), captured)
                 self._new_session = False
 
             verdicts: list[Event] = []
@@ -792,7 +796,7 @@ class LiveSession:
                     for src, type_, payload in obs.emissions:
                         seq += 1
                         verdicts += self.engine.on_event(
-                            Event(t=now, seq=seq, src=src, type=type_, payload=payload)
+                            Event(t=captured, seq=seq, src=src, type=type_, payload=payload)
                         )
             self._handle(verdicts)
 

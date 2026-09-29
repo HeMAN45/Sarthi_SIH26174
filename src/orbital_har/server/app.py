@@ -40,6 +40,7 @@ from orbital_har.runtime.session import LiveSession, build_procedure, perception
 from orbital_har.runtime.store import Store
 from orbital_har.runtime.telemetry import verify
 from orbital_har.runtime.training import TrainManager
+from orbital_har.runtime.videoout import VIDEO_LOST, playable
 
 _STATIC_DIR = Path(__file__).resolve().parents[3] / "ui" / "dist"
 _SPA_INDEX = _STATIC_DIR / "index.html"
@@ -290,6 +291,9 @@ async def download_video(session_id: str):
     path = Path(sess["session_dir"]) / "run.mp4"
     if not path.exists():
         return JSONResponse({"error": "no recording"}, status_code=404)
+    # A run killed mid-recording leaves a file no player opens; say why instead.
+    if sess.get("status") == "crashed" and not playable(path):
+        return JSONResponse({"error": sess.get("notes") or VIDEO_LOST}, status_code=410)
     return FileResponse(path, media_type="video/mp4", filename=f"{session_id}.mp4")
 
 

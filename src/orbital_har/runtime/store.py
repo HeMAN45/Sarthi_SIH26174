@@ -162,14 +162,14 @@ class Store:
                 ),
             )
 
-    def mark_crashed(self, session_id: str) -> None:
-        """Mark an open session as crashed and recoverable."""
+    def mark_crashed(self, session_id: str, notes: str | None = None) -> None:
+        """Mark an open session as crashed and recoverable, saying what was lost."""
         with self.conn:
             self.conn.execute(
                 """UPDATE sessions SET status = 'crashed',
-                     ended_at = ?, crash_recovered = 1
+                     ended_at = ?, crash_recovered = 1, notes = COALESCE(?, notes)
                    WHERE id = ? AND status = 'running'""",
-                (_now(), session_id),
+                (_now(), notes, session_id),
             )
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:

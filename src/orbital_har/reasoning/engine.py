@@ -126,6 +126,41 @@ class EngineConfig:
     wrong_hand_cooldown_s: float = 10.0
 
 
+#: How far past the current step each live run mode judges evidence (TRD section
+#: 7.5). Both look one step ahead, so doing the next step early is always caught:
+#: Clean completes it and raises a skip alert for the step passed over; Strict
+#: holds it out of sequence instead.
+LIVE_LOOKAHEAD = {"clean": 1, "strict": 1}
+
+#: The frame rate procedure holds are written for (a laptop webcam through
+#: detection and pose). Live, a hold means the time its frames span at this
+#: rate, so a slower machine does not make the operator freeze longer: twelve
+#: frames is 0.73 s at 4 FPS as at 15.
+HOLD_FPS = 15.0
+
+
+def live_config(mode: str = "clean") -> EngineConfig:
+    """The engine every live run and every replay of one uses.
+
+    The thresholds are lower than the class defaults (TRD section 7.3) because
+    the stand-in detector is uncalibrated COCO: its sure sightings of a real
+    object land around 0.6-0.7 (a quarter of 97 completed steps across the
+    recorded runs scored 0.63 or less). They keep the band the abstention path
+    needs: the detector publishes nothing under 0.35 (``DETECTION_FLOOR``), so
+    0.35-0.45 is "seen, too weak to act on" -- UNVERIFIED after the dwell --
+    and 0.45-0.60 is "keep watching". With ``tau_abstain`` at the floor, as it
+    once was, UNVERIFIED could never happen (invariant #12).
+    """
+    return EngineConfig(
+        tau_complete=0.60,
+        tau_abstain=0.45,
+        window_capacity=120,
+        strict_preconditions=(mode == "strict"),
+        completion_lookahead=LIVE_LOOKAHEAD.get(mode, 1),
+        hold_fps=HOLD_FPS,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class StepEvaluation:
     satisfied: bool
@@ -349,7 +384,9 @@ class Engine:
 
             if confidence >= self.config.tau_complete:
                 completions.append(rt)
-            elif confidence < self.config.tau_abstain:
+            elif confidence < self.config.tau_abstain and rt.state == StepState.ACTIVE:
+                # Only the step the crew is doing can be "cannot verify". Faint
+                # evidence of the next one is not something to ask them about.
                 out += self._maybe_abstain(rt, t)
 
         for rt in sorted(completions, key=lambda r: r.ordinal):

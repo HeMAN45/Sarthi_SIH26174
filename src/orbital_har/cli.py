@@ -17,7 +17,7 @@ from rich.table import Table
 
 from orbital_har.core.bus import read_stream
 from orbital_har.core.types import EventType, StepState
-from orbital_har.reasoning.engine import Engine, EngineConfig
+from orbital_har.reasoning.engine import Engine, live_config
 from orbital_har.reasoning.schema import Procedure, ProcedureError
 
 PROCEDURE_DIR = Path("procedures")
@@ -110,14 +110,15 @@ def cmd_fixture(args: argparse.Namespace, console: Console) -> int:
 
 def cmd_replay(args: argparse.Namespace, console: Console) -> int:
     proc = load_procedure(args.procedure, console)
-    engine = Engine(
-        proc,
-        EngineConfig(
-            tau_complete=args.tau_complete,
-            tau_abstain=args.tau_abstain,
-            strict_preconditions=args.strict,
-        ),
-    )
+    # A replay is judged exactly as the live run it reproduces would have been:
+    # the same lookahead, holds and thresholds. The class defaults once used
+    # here showed skip alerts the live console never raised.
+    config = live_config("strict" if args.strict else args.mode)
+    if args.tau_complete is not None:
+        config.tau_complete = args.tau_complete
+    if args.tau_abstain is not None:
+        config.tau_abstain = args.tau_abstain
+    engine = Engine(proc, config)
 
     console.rule(f"[bold]{proc.procedure.name}[/]")
     alerts = 0
@@ -147,8 +148,9 @@ def cmd_demo(args: argparse.Namespace, console: Console) -> int:
     replay_args = argparse.Namespace(
         procedure=fixture.procedure,
         stream=out,
-        tau_complete=0.75,
-        tau_abstain=0.50,
+        mode=fixture.mode,
+        tau_complete=None,
+        tau_abstain=None,
         strict=False,
         expect_clean=False,
     )
@@ -358,6 +360,7 @@ def cmd_eval(args: argparse.Namespace, console: Console) -> int:
                 events=fixture.scenario.events,
                 expected_states=fixture.expected.final_states,
                 expected_alerts=list(fixture.expected.alerts),
+                mode=fixture.mode,
             )
         )
 
@@ -366,7 +369,12 @@ def cmd_eval(args: argparse.Namespace, console: Console) -> int:
     console.print(metrics.report())
 
     console.rule("[bold]Calibration[/]")
-    calibration = calibrate(calibration_samples(cases), target_precision=args.precision)
+    live = live_config()
+    calibration = calibrate(
+        calibration_samples(cases),
+        target_precision=args.precision,
+        in_use=(live.tau_complete, live.tau_abstain),
+    )
     console.print(calibration.report())
 
     detector = None
@@ -508,9 +516,16 @@ def build_parser() -> argparse.ArgumentParser:
     r = sub.add_parser("replay", help="replay an event stream through the engine")
     r.add_argument("--procedure", required=True)
     r.add_argument("--stream", required=True)
-    r.add_argument("--tau-complete", type=float, default=0.75, dest="tau_complete")
-    r.add_argument("--tau-abstain", type=float, default=0.50, dest="tau_abstain")
-    r.add_argument("--strict", action="store_true", help="gate completion on preconditions")
+    r.add_argument(
+        "--mode", choices=("clean", "strict"), default="clean", help="the live run mode to replay"
+    )
+    r.add_argument("--strict", action="store_true", help="same as --mode strict")
+    r.add_argument(
+        "--tau-complete", type=float, default=None, dest="tau_complete", help="override (0.60)"
+    )
+    r.add_argument(
+        "--tau-abstain", type=float, default=None, dest="tau_abstain", help="override (0.45)"
+    )
     r.add_argument("--expect-clean", action="store_true", help="exit 1 if any alert fires")
     r.set_defaults(func=cmd_replay)
 

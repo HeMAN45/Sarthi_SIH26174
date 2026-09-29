@@ -12,9 +12,15 @@ from __future__ import annotations
 import pytest
 
 from orbital_har.core.bus import read_stream
+from orbital_har.reasoning.engine import EngineConfig
 from orbital_har.reasoning.schema import Procedure
 from orbital_har.simkit.fixtures import ALL_FIXTURES, build
 from tests.conftest import PROCEDURES, run_events, run_verdicts
+
+
+def _config(fixture) -> EngineConfig:
+    """The engine's class defaults, in the run mode the case is written for."""
+    return EngineConfig(strict_preconditions=fixture.mode == "strict")
 
 
 @pytest.fixture(scope="session")
@@ -29,7 +35,7 @@ def procedures() -> dict[str, Procedure]:
 def test_fixture_reaches_expected_verdicts(name: str, procedures) -> None:
     fixture = build(name)
     procedure = procedures[fixture.procedure]
-    engine, verdicts = run_verdicts(procedure, fixture.scenario.events)
+    engine, verdicts = run_verdicts(procedure, fixture.scenario.events, _config(fixture))
 
     actual = {sid: state.value for sid, state in engine.states.items()}
     for step_id, expected in fixture.expected.final_states.items():
@@ -50,7 +56,9 @@ def test_clean_fixtures_raise_no_alerts(name: str, procedures) -> None:
     fixture = build(name)
     if fixture.expected.alerts:
         pytest.skip("this fixture is expected to alert")
-    _, verdicts = run_verdicts(procedures[fixture.procedure], fixture.scenario.events)
+    _, verdicts = run_verdicts(
+        procedures[fixture.procedure], fixture.scenario.events, _config(fixture)
+    )
     alerts = [v for v in verdicts if v.type == "alert"]
     assert alerts == [], f"{name} should be clean but raised {alerts}"
 

@@ -180,6 +180,9 @@ function Detail({ d, check, onVerify }: { d: SessionDetail; check: Check; onVeri
             <div className="faint" style={{ fontSize: 14, marginTop: 2 }}>
               Started {fmtWhen(s.started_at)}{s.ended_at ? ` · ended ${fmtWhen(s.ended_at)}` : ""}
             </div>
+            {s.notes && (
+              <div style={{ fontSize: 14, marginTop: 4, color: "var(--caution)" }}>{s.notes}</div>
+            )}
           </div>
           <span className="spacer" />
           <div className="row" style={{ gap: 8 }}>

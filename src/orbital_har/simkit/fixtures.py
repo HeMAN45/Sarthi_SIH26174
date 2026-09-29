@@ -44,6 +44,9 @@ class Fixture:
     scenario: Scenario
     expected: ExpectedOutcome
     description: str = ""
+    #: The run mode the case is judged in. Strict holds an early step out of
+    #: sequence where Clean completes it and alerts the skipped one.
+    mode: str = "clean"
 
 
 # --------------------------------------------------------------------------
@@ -232,9 +235,63 @@ def proc_b_clean() -> Fixture:
     )
 
 
+def proc_a_stall_s4() -> Fixture:
+    """The operator stops after step 3 and does nothing past step 4's time limit."""
+    sc = standard_world()
+    _proc_a_through_s3(sc)
+    sc.hold(62.0)  # s4 allows 60 s
+
+    return Fixture(
+        name="proc_a_stall_s4",
+        procedure="proc_a",
+        scenario=sc,
+        description="No progress on step 4 for its whole time limit. Must raise a stall.",
+        expected=ExpectedOutcome(
+            final_states={
+                "s1": "complete",
+                "s2": "complete",
+                "s3": "complete",
+                "s4": "stalled",
+                "s5": "pending",
+            },
+            alerts=[("stall", "s4")],
+        ),
+    )
+
+
+def proc_a_out_of_order_s5() -> Fixture:
+    """Strict mode: the vial is moved before the red box is opened, then the
+    operator goes back and opens it. Flagged, then both steps stand."""
+    sc = standard_world()
+    _proc_a_through_s3(sc)
+
+    sc.grab("tweezers", "sample_vial").hold(0.5)
+    sc.place("sample_vial", MARKER_Y).hold(0.5)
+    sc.release("tweezers", "sample_vial").hold(0.7)
+
+    sc.set_class("red_box", "red_box_open").hold(1.0)  # back to the step passed over
+
+    sc.set_class("red_box", "red_box_closed")
+    sc.place("tether_clip", MARKER_R).hold(1.0)
+
+    return Fixture(
+        name="proc_a_out_of_order_s5",
+        procedure="proc_a",
+        scenario=sc,
+        mode="strict",
+        description="Step 5 before step 4 in Strict mode: out of sequence, then recovered.",
+        expected=ExpectedOutcome(
+            final_states={f"s{i}": "complete" for i in range(1, 7)},
+            alerts=[("out_of_order", "s5")],
+        ),
+    )
+
+
 ALL_FIXTURES = {
     "proc_a_clean": proc_a_clean,
     "proc_a_skip_s4": proc_a_skip_s4,
+    "proc_a_stall_s4": proc_a_stall_s4,
+    "proc_a_out_of_order_s5": proc_a_out_of_order_s5,
     "proc_a_unverified_s4": proc_a_unverified_s4,
     "proc_a_rack_lost": proc_a_rack_lost,
     "proc_b_clean": proc_b_clean,

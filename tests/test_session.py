@@ -28,6 +28,7 @@ from orbital_har.runtime.session import (
     LiveSession,
     build_procedure,
 )
+from orbital_har.runtime.videoout import VIDEO_LOST, playable
 from orbital_har.runtime.voice import PiperSynth, Voice
 
 
@@ -50,6 +51,25 @@ class ScriptedCamera(Camera):
 
     def release(self) -> None:
         self.opened = False
+
+
+class WarmingCamera(ScriptedCamera):
+    """A webcam: the first read after powering on blocks while it warms up."""
+
+    def __init__(self, warmup_s: float) -> None:
+        super().__init__()
+        self.warmup_s = warmup_s
+        self._cold = True
+
+    def open(self) -> bool:
+        self._cold = True
+        return super().open()
+
+    def read(self) -> np.ndarray | None:
+        if self.opened and self._cold:
+            self._cold = False
+            time.sleep(self.warmup_s)
+        return super().read()
 
 
 class ScriptedDetector(Detector):
@@ -191,6 +211,90 @@ class TestRun:
         rig.session.skip()
         time.sleep(0.3)
         assert all(s["state"] == "pending" for s in rig.session.state()["steps"])
+
+
+def test_a_closed_recording_is_playable(tmp_path: Path) -> None:
+    from orbital_har.runtime.videoout import Recorder
+
+    rec = Recorder(tmp_path / "run.mp4", (64, 48))
+    for _ in range(3):
+        rec._next_write = 0.0
+        rec.write(np.zeros((48, 64, 3), dtype=np.uint8))
+    rec.close()
+    assert playable(tmp_path / "run.mp4")
+    assert not playable(tmp_path / "missing.mp4")
+
+
+class TestTelemetryClock:
+    def test_the_log_never_runs_backwards_when_the_camera_is_slow_to_start(
+        self, tmp_path: Path
+    ) -> None:
+        # Frames used to be stamped when the loop iteration began, before the
+        # camera read, while session_start was stamped after it. A warming
+        # webcam made a run's first verdicts older than the run itself.
+        import json
+        from datetime import datetime
+
+        camera = WarmingCamera(warmup_s=0.3)
+        detector = ScriptedDetector()
+        proc = build_procedure(["bottle"], {"bottle", "cup", "book"}, name="One object")
+        voice = Voice(cache_dir=tmp_path / "voice", synth=PiperSynth(tmp_path / "no-voice"))
+        session = LiveSession(
+            proc, detector, camera=camera, data_root=tmp_path, record=False, voice=voice
+        )
+        session.start()
+        try:
+            session.start_run("clean")
+            assert wait_for(lambda: session.log is not None)
+            detector.seen = ["bottle"]
+            assert wait_for(lambda: session.state().get("phase") == PHASE_COMPLETE)
+            session.end_run()
+            assert wait_for(lambda: session.state().get("phase") == PHASE_READY)
+            path = session.log.dir / "telemetry.jsonl"
+        finally:
+            session.stop()
+            session.store.close()
+
+        records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        times = [datetime.fromisoformat(r["t"]) for r in records]
+        assert records[0]["ev"] == "session_start"
+        assert times == sorted(times), [(r["ev"], r["t"]) for r in records]
+
+
+class TestRecovery:
+    def _killed_run(self, rig, video: bytes | None) -> str:
+        """A run left 'running', as a hard kill leaves it, with this video."""
+        rig.session.start_run("clean")
+        assert wait_for(lambda: rig.session.log is not None)
+        run_dir = rig.session.log.dir
+        if video is not None:
+            (run_dir / "run.mp4").write_bytes(video)
+        return rig.session.log.id
+
+    def test_a_killed_run_says_its_video_was_lost(self, rig) -> None:
+        # Frames on disk but no index: what the mp4 writer leaves when killed.
+        sid = self._killed_run(rig, b"ftypmp42" + bytes(4096))
+        assert rig.session.recover_orphans() == 1
+        row = rig.session.store.get_session(sid)
+        assert row["status"] == "crashed"
+        assert row["notes"] == VIDEO_LOST
+
+    def test_a_killed_run_with_no_video_notes_nothing(self, rig) -> None:
+        sid = self._killed_run(rig, None)
+        rig.session.recover_orphans()
+        assert rig.session.store.get_session(sid)["notes"] is None
+
+    def test_the_archive_refuses_a_lost_video_and_says_why(self, rig) -> None:
+        from fastapi.testclient import TestClient
+
+        from orbital_har.server.app import app, configure
+
+        sid = self._killed_run(rig, bytes(4096))
+        rig.session.recover_orphans()
+        configure(rig.session.store)
+        reply = TestClient(app).get(f"/api/sessions/{sid}/video")
+        assert reply.status_code == 410
+        assert reply.json()["error"] == VIDEO_LOST
 
 
 class TestCamera:

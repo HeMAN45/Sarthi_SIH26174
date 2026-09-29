@@ -58,6 +58,9 @@ export function Feed({ s }: { s: LiveState }) {
           <span className="hud-tag">Preview · not judged</span>
         )}
         {s.session?.rtsp && <span className="hud-tag">RTSP</span>}
+        {s.session?.rtsp_error && (
+          <span className="hud-tag bad" title={s.session.rtsp_error}>RTSP down · {s.session.rtsp_error}</span>
+        )}
         <span className="spacer" />
         <span className="hud-tag">Cam {s.camera.index}</span>
         {camLive && <span className="hud-tag"><b>{s.fps.toFixed(1)}</b> fps</span>}

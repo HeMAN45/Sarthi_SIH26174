@@ -70,6 +70,8 @@ export interface SessionStats {
   frames: number;
   video_bytes: number;
   rtsp: boolean;
+  /** Why the requested RTSP stream is not running; null when it is, or none was asked for. */
+  rtsp_error: string | null;
   closed: boolean;
   elapsed_s: number;
   /** Head of the SHA-256 telemetry chain. */
@@ -335,6 +337,8 @@ export interface SessionRow {
   steps_out_of_order: number | null;
   alert_count: number | null;
   session_dir: string;
+  /** What a recovered run lost, e.g. its video when the process was killed mid-recording. */
+  notes?: string | null;
 }
 
 export interface SessionDetail {

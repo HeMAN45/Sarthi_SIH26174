@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from orbital_har.core.types import EventType
-from orbital_har.reasoning.engine import Engine, EngineConfig
+from orbital_har.reasoning.engine import Engine, EngineConfig, live_config
 from orbital_har.reasoning.schema import Procedure
 
 _EPS = 1e-6
@@ -146,10 +146,14 @@ class Case:
     events: list[Any]
     expected_states: dict[str, str]
     expected_alerts: list[tuple[str, str | None]] = field(default_factory=list)
+    #: The live run mode the case is judged in.
+    mode: str = "clean"
 
 
 def _run(case: Case, config: EngineConfig | None) -> tuple[Engine, list[tuple[str, Any]]]:
-    engine = Engine(case.procedure, config)
+    # By default a case is scored as a live run would judge it: numbers for a
+    # configuration that never ships would describe nothing.
+    engine = Engine(case.procedure, config if config is not None else live_config(case.mode))
     alerts: list[tuple[str, Any]] = []
 
     def collect(emitted) -> None:
@@ -371,7 +375,10 @@ def choose_thresholds(
 
 
 def calibrate(
-    samples: list[tuple[float, bool]], target_precision: float = 0.95, bins: int = 10
+    samples: list[tuple[float, bool]],
+    target_precision: float = 0.95,
+    bins: int = 10,
+    in_use: tuple[float, float] = (0.75, 0.50),
 ) -> Calibration:
     """Fit temperature and thresholds, and measure whether it helped.
 
@@ -382,10 +389,14 @@ def calibrate(
     data. Shipping that as a threshold would quietly lower the bar for acting on
     weak evidence, which is the opposite of what calibration is for.
     """
+    # ``in_use`` is (tau_complete, tau_abstain) as the engine runs today. When
+    # nothing can be fitted those are what stands, and what gets recorded.
     if not samples:
         return Calibration(
+            tau_complete=in_use[0],
+            tau_abstain=in_use[1],
             degenerate=True,
-            warnings=["no samples - thresholds are defaults, not fitted"],
+            warnings=["no samples - thresholds are the ones in use, not fitted"],
         )
 
     outcomes = {ok for _, ok in samples}
@@ -396,6 +407,8 @@ def calibrate(
         ece_before=round(expected_calibration_error(samples, bins), 5),
         ece_after=round(expected_calibration_error(after, bins), 5),
         samples=len(samples),
+        tau_complete=in_use[0],
+        tau_abstain=in_use[1],
     )
 
     if len(outcomes) < 2:
@@ -403,7 +416,7 @@ def calibrate(
         verdict = "correct" if outcomes == {True} else "wrong"
         result.warnings.append(
             f"every verdict was {verdict}, so no threshold can be fitted - "
-            "keeping the defaults. Add cases the engine gets WRONG "
+            "keeping the thresholds in use. Add cases the engine gets WRONG "
             "(occlusion, weak evidence, near-misses) before trusting these."
         )
         return result

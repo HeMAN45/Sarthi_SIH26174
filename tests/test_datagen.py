@@ -333,6 +333,7 @@ def _golden_cases() -> list[Case]:
                 events=fixture.scenario.events,
                 expected_states=fixture.expected.final_states,
                 expected_alerts=list(fixture.expected.alerts),
+                mode=fixture.mode,
             )
         )
     return cases

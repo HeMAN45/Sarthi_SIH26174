@@ -324,7 +324,7 @@ visual is wanted for the demo, run it offline at ≤2 Hz as a side channel on re
 |---|---|---|
 | PENDING | ACTIVE | All preconditions COMPLETE/OVERRIDDEN and it is the earliest such step |
 | ACTIVE | COMPLETE | All `requires` predicates true for `hold_frames`, confidence ≥ τ_complete |
-| ACTIVE | UNVERIFIED | Predicates true but confidence < τ_complete for > dwell window |
+| ACTIVE | UNVERIFIED | The active step's predicates true but confidence < τ_abstain for longer than `unverified_dwell_s` (1.5 s) |
 | ACTIVE | STALLED | `timeout_s` elapsed with no predicate progress |
 | PENDING | SKIPPED | A later step reaches COMPLETE while this one is not complete |
 | PENDING | OUT_OF_ORDER | Its predicates fire while its preconditions are unmet |
@@ -334,6 +334,14 @@ visual is wanted for the demo, run it offline at ≤2 Hz as a side channel on re
 
 Per-step confidence is the minimum of contributing predicate confidences, temperature-scaled
 against a held-out calibration set. Thresholds: `τ_complete = 0.75`, `τ_abstain = 0.50`.
+
+Those are the targets for the trained, calibrated model. The live console runs the
+uncalibrated stand-in at **0.60 / 0.45** (`reasoning.engine.live_config`): its sure
+sightings of a real object sit around 0.6-0.7, and `τ_abstain` must stay above the 0.35
+detection floor or cannot-verify is unreachable - which it was, while `τ_abstain` was
+0.35. Only the active step is ever declared UNVERIFIED: faint evidence of the next step is
+not something to ask the crew about. `orbital-har eval --save` records the thresholds in
+use, and fits new ones once the corpus holds verdicts the engine gets wrong.
 
 Below `τ_abstain`, the engine **must** publish `UNVERIFIED` and an `alert.unverified`. It
 must never silently advance on weak evidence. This is a hard safety requirement (FR-18) -
@@ -475,9 +483,9 @@ bytes written alongside the equivalent raw-video figure at 8 Mbps (FR-47).
 
 | Aspect | Spec |
 |---|---|
-| Local recording | FFmpeg, H.264, 60 s segments, `sessions/<id>/video/seg_%05d.mp4` |
-| Crash safety | Segmented output; a kill loses at most one segment |
-| Live stream | FFmpeg → MediaMTX → RTSP at a configured host:port |
+| Local recording | FFmpeg, H.264, 60 s segments, `sessions/<id>/video/seg_%05d.mp4`. **Built:** one OpenCV mp4 per run, `sessions/<id>/run.mp4`, 360p at 12 FPS |
+| Crash safety | Segmented output; a kill loses at most one segment. **Built:** not segmented, so a kill loses the run's video (an mp4 is indexed when closed). On restart the recovered run is noted `video lost` and the Archive says so rather than offer a file that will not play |
+| Live stream | FFmpeg → MediaMTX → RTSP at a configured host:port. FFmpeg gets a 5 s connect timeout (without one it waits forever for a server that is not there) and is fed from its own thread through a four-frame queue: a stalled stream drops stream frames, never blocks capture (invariant #9), and is stopped after 8 s. The reason is shown on the HUD |
 | Dashboard preview | MJPEG over loopback HTTP - chosen for reliability under demo conditions, not efficiency |
 | Overlay | Rendered into the dashboard preview only; recorded and streamed video stay clean |
 
@@ -525,6 +533,11 @@ Minimum ten recorded sessions committed as fixtures, each with an expected verdi
 sequence: three clean runs, two with skips, two out-of-order, one occluded, one inverted,
 one with a stall. **The engine is developed against this corpus before real perception
 exists**, and every corpus case must pass before any release tag.
+
+**Built:** seven scripted cases (`simkit/fixtures.py`), not yet ten recorded sessions:
+clean PROC-A and PROC-B, a skip, weak evidence, rack markers lost, a stall, and out of
+order then recovered. No inverted-operator case. Each is replayed under the engine
+defaults and under the live configuration.
 
 ### 12.3 Calibration set
 

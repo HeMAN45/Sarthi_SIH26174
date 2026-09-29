@@ -281,6 +281,12 @@ High volume, never loaded wholesale, consumed by streaming. This is the replay s
 
 The deliverable. One record per **state transition**, never per frame.
 
+`t` is when the camera frame the record is about was captured. `session_start` carries the
+capture time of the run's first frame, so `t` never decreases along the chain. (Stamping
+frames when the loop iteration began, and `session_start` when it was written, once dated
+a run's first verdicts before the run: the first read after the camera powers on can
+block for seconds.)
+
 ```json
 {"seq":7,"t":"2026-09-20T13:25:09.113Z","ev":"step_complete","step":"s3","ord":3,
  "conf":0.91,"dur_s":15.7,"ev_src":["detect:yellow_box_open@0.93",

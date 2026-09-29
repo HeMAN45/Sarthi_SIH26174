@@ -4,7 +4,7 @@
 
 # SARTHI
 
-### The on-board assistant that watches a space experiment, guides every step and catches mistakes. Fully offline
+### The on-board assistant that watches a space experiment, guides every step and catches mistakes. Fully offline.
 
 **Smart India Hackathon 2026** · Problem Statement **SIH26174** · ISRO / Department of Space · **Team Hashira**
 

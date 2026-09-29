@@ -25,6 +25,7 @@ from orbital_har.perception.gestures import GestureReader
 from orbital_har.perception.hands import ContactInferrer, HandPoint, HandTracker
 from orbital_har.perception.pose import PoseEstimator, PoseObservation
 from orbital_har.perception.rackframe import RackFrame, RackLayout, RackObservation
+from orbital_har.perception.tracking import ObjectTracker
 
 #: (source, event type, payload) - everything observed about one frame.
 Emission = tuple[str, str, dict[str, Any]]
@@ -116,6 +117,8 @@ class PerceptionPipeline:
         self.hands = HandTracker()
         self.contacts = ContactInferrer()
         self.gestures = GestureReader()
+        #: Stable ids, and a detector miss of a moment bridged (``tracking``).
+        self.tracker = ObjectTracker()
         self.rack_locked = False
         #: Image-space regions of the loaded procedure, drawn so the operator
         #: can see where "put it back in its place" means. Display only.
@@ -148,6 +151,7 @@ class PerceptionPipeline:
         self.want_pose = want_pose
         self.scene = scene
         self.regions = list(regions or [])
+        self.tracker.reset()
         if self.tracking_body:
             self._ensure_pose()
 
@@ -237,6 +241,10 @@ class PerceptionPipeline:
                 pos = rack_obs.project(((x0 + x1) / 2.0, (y0 + y1) / 2.0))
                 if pos is not None:
                     obj["centroid_mm"] = [round(v, 1) for v in pos]
+
+        # A whole-frame classifier has no boxes to follow; everything else does.
+        if self.detector.mode != "classifier":
+            objects = self.tracker.update(objects)
 
         pose_obs: PoseObservation | None = None
         hands: tuple[HandPoint, ...] = ()

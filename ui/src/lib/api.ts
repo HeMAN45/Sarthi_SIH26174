@@ -72,6 +72,8 @@ export interface SessionStats {
   rtsp: boolean;
   /** Why the requested RTSP stream is not running; null when it is, or none was asked for. */
   rtsp_error: string | null;
+  /** A stopped recorder, or a recording a kill would lose; null when all is well. */
+  record_issue: string | null;
   closed: boolean;
   elapsed_s: number;
   /** Head of the SHA-256 telemetry chain. */

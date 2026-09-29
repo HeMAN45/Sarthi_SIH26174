@@ -334,10 +334,11 @@ video → close DB → stop child processes.
 
 **Crash:** telemetry and bus files are append-only and fsynced every 2 s, so at most 2 s is
 lost. On restart, sessions left open are marked `crashed` with `crash_recovered = 1`. No
-session is ever silently lost. The video is: recording is one mp4 per run, indexed when
-it is closed, so a kill loses it (segmented recording, TRD §9, is not built). Recovery
-checks the file and notes `video lost` on the session; the Archive shows the note and
-refuses the download with it, instead of offering a file no player opens.
+session is ever silently lost. The video is a fragmented mp4 written by FFmpeg, playable
+as it grows, so a kill loses at most its last 2 s (TRD §9). Without FFmpeg it falls back
+to an OpenCV mp4, which a kill loses whole: the HUD says so during the run, and recovery
+checks the file, notes `video lost` on the session, and the Archive shows the note and
+refuses the download with it instead of offering a file no player opens.
 
 ---
 

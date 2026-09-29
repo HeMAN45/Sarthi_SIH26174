@@ -14,7 +14,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![YOLO11](https://img.shields.io/badge/Ultralytics-YOLO11-111F68)
 ![Offline](https://img.shields.io/badge/network_at_runtime-none-2e9b55)
-![Tests](https://img.shields.io/badge/tests-499_passing-2e9b55)
+![Tests](https://img.shields.io/badge/tests-518_passing-2e9b55)
 
 [Overview](#overview) · [Features](#features) · [Quick start](#quick-start) · [Guide](#guide) · [Tech stack](#tech-stack) · [Architecture](#architecture) · [Docs](#documentation)
 
@@ -223,7 +223,7 @@ so on a laptop make them slow and wide.
 | **Voice** | **Piper** text to speech, on device, pre-rendered prompts |
 | **Video** | OpenCV mp4 recording · FFmpeg RTSP publishing |
 | **Dashboard** | **React 19** · TypeScript · Vite · Lucide icons · Geist font bundled |
-| **Quality** | pytest (499 tests, golden replay corpus) · ruff · import-linter · oxlint · GitHub Actions |
+| **Quality** | pytest (518 tests, golden replay corpus) · ruff · import-linter · oxlint · GitHub Actions |
 
 ---
 
@@ -301,7 +301,7 @@ is **SARTHI**.
 ## Testing and quality
 
 ```bash
-uv run pytest                  # 499 tests, including the golden replay corpus
+uv run pytest                  # 518 tests, including the golden replay corpus
 uv run ruff check .            # lint
 uv run lint-imports            # perception and reasoning never import each other
 uv run orbital-har demo proc_a_skip_s4    # replay a recorded run with a skipped step

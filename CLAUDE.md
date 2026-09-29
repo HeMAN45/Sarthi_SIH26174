@@ -101,7 +101,7 @@ find yourself needing perception to test the engine, the seam has been broken.
 
 ## Current state
 
-**The pipeline runs end to end on a camera.** 499 tests pass; ruff, the import-boundary
+**The pipeline runs end to end on a camera.** 518 tests pass; ruff, the import-boundary
 contract and the offline guard are all green.
 
 Built and working:
@@ -115,7 +115,8 @@ Built and working:
   Those are scripted cases, not footage: they prove the reasoning, not the camera.
 - **perception** - `rackframe` (ArUco + homography to rack millimetres, input-frame
   canonicalization), `pose` (YOLO11-pose), `hands` (palm-from-forearm plus geometric
-  contact inference), `colours` (solid-coloured blocks found by hue, no model), `gestures` (thirteen body actions -- postures and movements --
+  contact inference), `colours` (solid-coloured blocks found by hue, no model),
+  `tracking` (stable ids over every source, a miss of up to 0.4 s bridged), `gestures` (thirteen body actions -- postures and movements --
   measured in the body's own frame, so they read the same upright, lying or inverted), `detect` (boxes, or an on-device
   classifier or detector), `capture`, and `pipeline` which joins them into event
   payloads. Body tracking is on by default and drawn on the feed. Scene procedures get
@@ -123,7 +124,7 @@ Built and working:
   detector trained on the device runs *beside* the stock one, never instead of it.
 - **runtime** - SQLite store with migrations, hash-chained telemetry and verifier,
   `session.LiveSession` (the composition root), `voice` (Piper, pre-synthesized,
-  pre-emptible), `videoout` (mp4 + RTSP), `training` (on-device classifier or
+  pre-emptible), `videoout` (crash-safe fragmented H.264 mp4 + RTSP, both fed off the capture thread), `training` (on-device classifier or
   detector), `boxes` (stock-detector box proposals for detector training),
   `experiments` (builder experiments saved as procedure files in `data/experiments/`).
 - **server** - one FastAPI app; live endpoints degrade to 503 without a session.

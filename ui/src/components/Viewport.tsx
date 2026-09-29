@@ -58,6 +58,9 @@ export function Feed({ s }: { s: LiveState }) {
           <span className="hud-tag">Preview · not judged</span>
         )}
         {s.session?.rtsp && <span className="hud-tag">RTSP</span>}
+        {s.session?.record_issue && (
+          <span className="hud-tag bad" title={s.session.record_issue}>Rec · {s.session.record_issue}</span>
+        )}
         {s.session?.rtsp_error && (
           <span className="hud-tag bad" title={s.session.rtsp_error}>RTSP down · {s.session.rtsp_error}</span>
         )}

@@ -265,7 +265,7 @@ publish `alert.degraded` and fall back to identity.
 | Classes | See appendix A |
 | Confidence floor | 0.35 publish, 0.60 predicate default |
 | NMS IoU | 0.5 |
-| Tracking | ByteTrack, for stable `track_id` across frames |
+| Tracking | ByteTrack, for stable `track_id` across frames. **Built:** `perception.tracking`, one IoU tracker over every source in the frame (stock model, trained model, colour blocks; ByteTrack follows a single model's output). It also bridges a detector miss of up to 0.4 s at the object's last place, marked `coasted`, because every hold needs its evidence on every frame and one miss restarted a dwell. A different class seen in the same place is a state change and is never bridged |
 | Export | PyTorch → ONNX → TensorRT FP16 for EDGE |
 
 Object **states are modelled as distinct classes** (`red_box_open` vs `red_box_closed`),
@@ -486,8 +486,8 @@ bytes written alongside the equivalent raw-video figure at 8 Mbps (FR-47).
 
 | Aspect | Spec |
 |---|---|
-| Local recording | FFmpeg, H.264, 60 s segments, `sessions/<id>/video/seg_%05d.mp4`. **Built:** one OpenCV mp4 per run, `sessions/<id>/run.mp4`, 360p at 12 FPS |
-| Crash safety | Segmented output; a kill loses at most one segment. **Built:** not segmented, so a kill loses the run's video (an mp4 is indexed when closed). On restart the recovered run is noted `video lost` and the Archive says so rather than offer a file that will not play |
+| Local recording | FFmpeg, H.264, 60 s segments, `sessions/<id>/video/seg_%05d.mp4`. **Built:** one fragmented H.264 mp4 per run from FFmpeg, `sessions/<id>/run.mp4`, 360p at 12 FPS, a keyframe and fragment every 2 s, zero-latency encoding and every packet flushed. Browsers play it. Without FFmpeg, an OpenCV mp4 instead |
+| Crash safety | Segmented output; a kill loses at most one segment. **Built:** the fragmented mp4 stays playable as it grows, so a kill loses at most the fragment being written, about 2 s (measured: killed after 120 frames, 96 playable; before, a kill lost every frame). The OpenCV fallback is lost whole by a kill; the HUD says it is not crash-safe, and on restart such a run is noted `video lost` and the Archive refuses the unplayable file with that reason |
 | Live stream | FFmpeg → MediaMTX → RTSP at a configured host:port. FFmpeg gets a 5 s connect timeout (without one it waits forever for a server that is not there) and is fed from its own thread through a four-frame queue: a stalled stream drops stream frames, never blocks capture (invariant #9), and is stopped after 8 s. The reason is shown on the HUD |
 | Dashboard preview | MJPEG over loopback HTTP - chosen for reliability under demo conditions, not efficiency |
 | Overlay | Rendered into the dashboard preview only; recorded and streamed video stay clean |

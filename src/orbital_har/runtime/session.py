@@ -277,6 +277,8 @@ class SessionLog:
             "rtsp": bool(self.recorder and self.recorder.rtsp_active),
             # Read after ``rtsp_active``, which is what notices a dead stream.
             "rtsp_error": self.recorder.rtsp_error if self.recorder else None,
+            # A stopped recorder, or a recording a kill would lose (no ffmpeg).
+            "record_issue": self.recorder.record_issue if self.recorder else None,
             "elapsed_s": self.elapsed_s,
             # The chain head. Anyone holding it can later prove the log they are
             # shown is the log that was written.

@@ -8,8 +8,8 @@ export const MODE_OPTIONS: { value: Mode; label: string }[] = [
 ];
 
 export const MODE_HINT: Record<Mode, string> = {
-  clean: "Standard supervision: each step is judged as it is done.",
-  strict: "Also flags steps done ahead of their preconditions as out of sequence.",
+  clean: "Each step is judged as it is done. A step done early counts, and the one skipped is alerted.",
+  strict: "A step done ahead of its turn is held out of sequence until the skipped one is done.",
 };
 
 export function detectorLabel(mode: string | undefined, trained: string[] = []): string {

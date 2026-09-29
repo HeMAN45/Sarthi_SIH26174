@@ -71,7 +71,19 @@ class _BasePredicate(BaseModel):
     latch: bool = False
 
 
-class DetectPredicate(_BasePredicate):
+class _HeldPredicate(_BasePredicate):
+    """Evidence that must hold steadily before it counts.
+
+    ``hold_frames`` is written for the live console's reference frame rate
+    (15 FPS) and becomes a duration there, so a slow laptop does not make the
+    operator freeze longer. ``hold_s`` states that duration directly and wins
+    when given. A replay with no reference rate counts frames.
+    """
+
+    hold_s: float | None = Field(default=None, gt=0.0)
+
+
+class DetectPredicate(_HeldPredicate):
     kind: Literal["detect"] = "detect"
     obj_class: str
     min_conf: float = Field(default=DETECTION_FLOOR, ge=0.0, le=1.0)
@@ -81,14 +93,14 @@ class DetectPredicate(_BasePredicate):
     min_area: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
-class AbsentPredicate(_BasePredicate):
+class AbsentPredicate(_HeldPredicate):
     kind: Literal["absent"] = "absent"
     obj_class: str
     min_conf: float = Field(default=DETECTION_FLOOR, ge=0.0, le=1.0)
     hold_frames: int = Field(default=12, ge=1)
 
 
-class ContactPredicate(_BasePredicate):
+class ContactPredicate(_HeldPredicate):
     kind: Literal["contact"] = "contact"
     a: str
     b: str
@@ -118,7 +130,7 @@ class MovedPredicate(_BasePredicate):
         return self
 
 
-class TiltedPredicate(_BasePredicate):
+class TiltedPredicate(_HeldPredicate):
     """The object is tipped over: its box at least ``min_ratio`` as wide as tall.
 
     A bottle standing up is about three times taller than wide; poured, its
@@ -132,7 +144,7 @@ class TiltedPredicate(_BasePredicate):
     hold_frames: int = Field(default=4, ge=1)
 
 
-class NearPredicate(_BasePredicate):
+class NearPredicate(_HeldPredicate):
     kind: Literal["near"] = "near"
     obj: str
     to: str
@@ -147,7 +159,7 @@ class DwellPredicate(_BasePredicate):
     seconds: float = Field(gt=0.0)
 
 
-class CountPredicate(_BasePredicate):
+class CountPredicate(_HeldPredicate):
     kind: Literal["count"] = "count"
     obj_class: str
     n: int = Field(ge=0)
@@ -155,7 +167,7 @@ class CountPredicate(_BasePredicate):
     hold_frames: int = Field(default=12, ge=1)
 
 
-class GesturePredicate(_BasePredicate):
+class GesturePredicate(_HeldPredicate):
     """A body action held for ``hold_frames``, read from pose in the body's own frame.
 
     ``side`` narrows it to one hand; ``any`` accepts either, and two-hand

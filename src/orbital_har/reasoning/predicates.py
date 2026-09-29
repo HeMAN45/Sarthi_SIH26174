@@ -35,6 +35,13 @@ class EvalContext:
     procedure: Procedure
     #: When the step under evaluation became active. ``moved`` measures from here.
     step_started_t: float | None = None
+    #: The frame rate ``hold_frames`` is written for. Set live, so a hold is a
+    #: duration whatever the camera manages; None counts frames (replay).
+    hold_fps: float | None = None
+    #: Judge the latest frame alone: every hold is one frame and a dwell only
+    #: asks "is it there now". The engine uses it to tell whether evidence is
+    #: in view at all, not whether it has been held long enough.
+    instant: bool = False
 
 
 UNSATISFIED = PredicateResult(False, 0.0, "no data")
@@ -52,10 +59,12 @@ def evaluate(predicate, ctx: EvalContext) -> PredicateResult:
 # --------------------------------------------------------------------------
 
 
-def _streak(ctx: EvalContext, n: int) -> list[FrameSnapshot] | None:
-    """The last ``n`` snapshots, or None if history is too short."""
-    frames = ctx.window.last(n)
-    return frames if len(frames) == n else None
+def _streak(ctx: EvalContext, p) -> list[FrameSnapshot] | None:
+    """The snapshots ``p``'s hold must cover, or None if history is too short."""
+    if ctx.instant:
+        latest = ctx.window.latest
+        return [latest] if latest is not None else None
+    return ctx.window.streak(p.hold_frames, fps=ctx.hold_fps, seconds=p.hold_s)
 
 
 def _centroid(
@@ -97,7 +106,7 @@ def contact_class(snap: FrameSnapshot, contact) -> str | None:
 
 
 def _eval_detect(p, ctx: EvalContext) -> PredicateResult:
-    frames = _streak(ctx, p.hold_frames)
+    frames = _streak(ctx, p)
     if frames is None:
         latest = ctx.window.latest
         conf = 0.0
@@ -119,7 +128,7 @@ def _eval_detect(p, ctx: EvalContext) -> PredicateResult:
 
 
 def _eval_absent(p, ctx: EvalContext) -> PredicateResult:
-    frames = _streak(ctx, p.hold_frames)
+    frames = _streak(ctx, p)
     if frames is None:
         return PredicateResult(False, 0.0, f"{p.obj_class} warming up")
 
@@ -134,7 +143,7 @@ def _eval_absent(p, ctx: EvalContext) -> PredicateResult:
 
 
 def _eval_contact(p, ctx: EvalContext) -> PredicateResult:
-    frames = _streak(ctx, p.hold_frames)
+    frames = _streak(ctx, p)
     if frames is None:
         return PredicateResult(False, 0.0, f"{p.a}-{p.b} warming up")
 
@@ -200,7 +209,7 @@ def _moved_in_picture(p, frames: list[FrameSnapshot], procedure: Procedure) -> P
 
 
 def _eval_tilted(p, ctx: EvalContext) -> PredicateResult:
-    frames = _streak(ctx, p.hold_frames)
+    frames = _streak(ctx, p)
     if frames is None:
         return PredicateResult(False, 0.0, f"{p.obj} warming up")
     classes = ctx.procedure.classes_for(p.obj)
@@ -218,7 +227,7 @@ def _eval_tilted(p, ctx: EvalContext) -> PredicateResult:
 
 
 def _eval_near(p, ctx: EvalContext) -> PredicateResult:
-    frames = _streak(ctx, p.hold_frames)
+    frames = _streak(ctx, p)
     if frames is None:
         return PredicateResult(False, 0.0, f"{p.obj}->{p.to} warming up")
 
@@ -267,16 +276,17 @@ def _eval_dwell(p, ctx: EvalContext) -> PredicateResult:
         return PredicateResult(False, 0.0, f"{p.obj} outside {p.region}")
 
     held = frames[-1].t - held_from
+    need = 0.0 if ctx.instant else p.seconds
     ratio = min(1.0, held / p.seconds)
     return PredicateResult(
-        held >= p.seconds,
-        worst_conf if held >= p.seconds else ratio,
+        held >= need,
+        worst_conf if held >= need else ratio,
         f"{p.obj} held {held:.1f}s",
     )
 
 
 def _eval_count(p, ctx: EvalContext) -> PredicateResult:
-    frames = _streak(ctx, p.hold_frames)
+    frames = _streak(ctx, p)
     if frames is None:
         return PredicateResult(False, 0.0, f"count {p.obj_class} warming up")
 
@@ -289,7 +299,7 @@ def _eval_count(p, ctx: EvalContext) -> PredicateResult:
 
 
 def _eval_gesture(p, ctx: EvalContext) -> PredicateResult:
-    frames = _streak(ctx, p.hold_frames)
+    frames = _streak(ctx, p)
     if frames is None:
         return PredicateResult(False, 0.0, f"{p.gesture} warming up")
 

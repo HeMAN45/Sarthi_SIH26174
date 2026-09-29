@@ -128,9 +128,13 @@ class PoseEstimator:
     rather than quietly showing nothing (invariant #10).
     """
 
-    def __init__(self, weights: str = "yolo11n-pose.pt", min_conf: float = 0.35) -> None:
+    def __init__(
+        self, weights: str = "yolo11n-pose.pt", min_conf: float = 0.35, imgsz: int | None = None
+    ) -> None:
         self.weights = weights
         self.min_conf = min_conf
+        #: Model input size; None keeps the model's own (640 for the stock one).
+        self.imgsz = imgsz
         self.unavailable_reason: str | None = None
         self._model: Any = None
 
@@ -156,7 +160,8 @@ class PoseEstimator:
         if self._model is None:
             return PoseObservation()
         try:
-            result = self._model.predict(frame, conf=self.min_conf, verbose=False)[0]
+            size = {"imgsz": self.imgsz} if self.imgsz else {}
+            result = self._model.predict(frame, conf=self.min_conf, verbose=False, **size)[0]
         except Exception as exc:
             self.unavailable_reason = f"{type(exc).__name__}: {exc}"
             return PoseObservation()

@@ -29,6 +29,7 @@ from pathlib import Path
 import uvicorn
 
 from orbital_har.perception.detect import Detector
+from orbital_har.perception.pipeline import DEFAULT_IMGSZ
 from orbital_har.reasoning.schema import Procedure
 from orbital_har.runtime.session import LiveSession
 from orbital_har.runtime.training import TrainManager
@@ -89,6 +90,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument("--world-model", default="yolov8s-worldv2.pt")
     ap.add_argument("--min-area", type=float, default=0.06)
+    ap.add_argument(
+        "--imgsz",
+        type=int,
+        default=DEFAULT_IMGSZ,
+        help=f"input size for the stock detector and pose (default {DEFAULT_IMGSZ}; the "
+        "models' own is 640, about twice as slow on a CPU; trained models keep their own)",
+    )
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument(
         "--host", default="127.0.0.1", help="0.0.0.0 makes the live feed reachable from the network"
@@ -131,6 +139,7 @@ def main(argv: list[str] | None = None) -> int:
         record=not args.no_record,
         record_height=args.record_height,
         mirror=not args.no_mirror,
+        imgsz=args.imgsz,
     )
 
     # Objects trained on this device join the stock ones, restarts included.

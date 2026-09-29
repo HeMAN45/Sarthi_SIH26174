@@ -22,6 +22,10 @@ from orbital_har.core.types import (
 
 DEFAULT_CAPACITY = 240  # ~8 s at 30 FPS
 
+#: Frame times are float sums of 1/fps; without slack, n frames at exactly
+#: ``fps`` can fall a hair short of the (n - 1) / fps they span.
+_T_EPS = 1e-6
+
 
 @dataclass
 class FrameSnapshot:
@@ -112,6 +116,36 @@ class Window:
 
     def since(self, t: float) -> list[FrameSnapshot]:
         return [f for f in self._frames if f.t >= t]
+
+    def streak(
+        self, n: int, fps: float | None = None, seconds: float | None = None
+    ) -> list[FrameSnapshot] | None:
+        """The snapshots a hold must cover, oldest first; None while history is short.
+
+        With neither ``fps`` nor ``seconds`` a hold is a frame count: the last
+        ``n`` snapshots. That is what a replay wants, where the frame rate is
+        whatever the recording was.
+
+        Live, a frame count means a different wait at every frame rate: twelve
+        frames is 0.4 s at 30 FPS and three seconds at 4, and the operator has
+        to freeze for all of it. So a hold becomes a duration: ``seconds`` when
+        given, else the time ``n`` frames span at ``fps``. The result starts at
+        the newest snapshot at least that long ago, so it always covers the full
+        duration, and at exactly ``fps`` it is the same ``n`` frames as before.
+        """
+        if seconds is None and fps is None:
+            frames = self.last(n)
+            return frames if len(frames) == n else None
+
+        span = seconds if seconds is not None else (n - 1) / fps  # type: ignore[operator]
+        frames = list(self._frames)
+        if not frames:
+            return None
+        cutoff = frames[-1].t - span + _T_EPS
+        for i in range(len(frames) - 1, -1, -1):
+            if frames[i].t <= cutoff:
+                return frames[i:]
+        return None
 
     def clear(self) -> None:
         self._frames.clear()

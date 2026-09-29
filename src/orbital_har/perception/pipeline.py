@@ -29,6 +29,13 @@ from orbital_har.perception.rackframe import RackFrame, RackLayout, RackObservat
 #: (source, event type, payload) - everything observed about one frame.
 Emission = tuple[str, str, dict[str, Any]]
 
+#: Input size for the stock detector and the pose model. Measured on 150 frames
+#: of recorded runs against 640 (the models' own size), on an i5-1135G7 CPU:
+#: 416 keeps 94% of the objects, finds the person in every frame with 1.7%
+#: keypoint drift, and runs detection 67 -> 37 ms and pose 74 -> 40 ms. 320 was
+#: barely faster and lost more. Raise it when the objects are small in frame.
+DEFAULT_IMGSZ = 416
+
 
 @dataclass
 class Observation:
@@ -96,8 +103,10 @@ class PerceptionPipeline:
     save CPU on a weak machine when none do.
     """
 
-    def __init__(self, detector: Detector) -> None:
+    def __init__(self, detector: Detector, imgsz: int | None = DEFAULT_IMGSZ) -> None:
         self.detector = detector
+        #: Input size for the stock detector and pose; None keeps their own.
+        self.imgsz = imgsz
         self.rack: RackFrame | None = None
         self.pose: PoseEstimator | None = None
         self.want_pose = False
@@ -154,7 +163,7 @@ class PerceptionPipeline:
 
     def _ensure_pose(self) -> None:
         if self.pose is None:
-            self.pose = PoseEstimator()
+            self.pose = PoseEstimator(imgsz=self.imgsz)
             if not self.pose.load():
                 print(f"[perception] pose unavailable: {self.pose.unavailable_reason}")
 
@@ -212,7 +221,11 @@ class PerceptionPipeline:
             self.rack_locked = rack_obs.found
 
         detection = self.detector.detect(
-            frame, wanted, min_area=min_area, multi=self.scene or self.rack is not None
+            frame,
+            wanted,
+            min_area=min_area,
+            multi=self.scene or self.rack is not None,
+            imgsz=self.imgsz,
         )
         objects = detection.objects
 

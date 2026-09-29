@@ -309,6 +309,7 @@ class Detector:
         wanted: set[str],
         min_area: float = 0.06,
         multi: bool = False,
+        imgsz: int | None = None,
     ) -> DetectionResult:
         """One frame in, detection payloads out.
 
@@ -317,10 +318,13 @@ class Detector:
         spot. Without it the procedure is a presentation -- "show the bottle"
         -- and only objects held up close count: at least ``min_area`` of the
         frame. Every such object counts, so two can be shown at once.
+
+        ``imgsz`` is the input size for the stock model (None keeps its own).
+        A trained detector always runs at the size it was trained at.
         """
         if self.classifier is not None:
             return self._classify(frame)
-        return self._boxes(frame, wanted, min_area, multi)
+        return self._boxes(frame, wanted, min_area, multi, imgsz)
 
     def _classify(self, frame: np.ndarray) -> DetectionResult:
         result = self.classifier.predict(frame, verbose=False)[0]
@@ -345,14 +349,23 @@ class Detector:
         return out
 
     def _boxes(
-        self, frame: np.ndarray, wanted: set[str], min_area: float, multi: bool
+        self,
+        frame: np.ndarray,
+        wanted: set[str],
+        min_area: float,
+        multi: bool,
+        imgsz: int | None = None,
     ) -> DetectionResult:
         # Each model is asked only for what the procedure wants, and a model
         # with nothing wanted from it is not run at all: a body-actions-only
-        # procedure costs no detection.
+        # procedure costs no detection. Nor does asking the stock model for
+        # classes it was never taught -- PROC-A's nine, before its model exists.
         painted = {c: col for c, col in self.colour_classes.items() if c in wanted}
         mine = set(self.trained_classes) & wanted - set(painted)
-        cands = self._candidates(self.model, self.names, frame, wanted - mine - set(painted))
+        stock = wanted - mine - set(painted)
+        if not self.open_vocab:
+            stock &= set(self.names.values())
+        cands = self._candidates(self.model, self.names, frame, stock, imgsz)
         cands += [
             Candidate(cls=c, conf=conf, bbox=box, area_frac=area)
             for c, conf, box, area in colours.find(frame, painted)
@@ -378,11 +391,16 @@ class Detector:
 
     @staticmethod
     def _candidates(
-        model: Any, names: dict[int, str], frame: np.ndarray, wanted: set[str]
+        model: Any,
+        names: dict[int, str],
+        frame: np.ndarray,
+        wanted: set[str],
+        imgsz: int | None = None,
     ) -> list[Candidate]:
         if not wanted:
             return []
-        result = model.predict(frame, conf=BOX_MIN_CONF, verbose=False)[0]
+        size = {"imgsz": imgsz} if imgsz else {}
+        result = model.predict(frame, conf=BOX_MIN_CONF, verbose=False, **size)[0]
         frame_area = float(frame.shape[0] * frame.shape[1])
         cands: list[Candidate] = []
         for box in result.boxes:

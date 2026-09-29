@@ -25,9 +25,12 @@ class ScriptedModel:
         self._ids = {n: i for i, n in self.names.items()}
         self._boxes = boxes
         self.calls = 0
+        #: The input size of the last predict; None when the model kept its own.
+        self.imgsz: int | None = None
 
-    def predict(self, frame, conf, verbose=False):
+    def predict(self, frame, conf, verbose=False, imgsz=None):
         self.calls += 1
+        self.imgsz = imgsz
         boxes = [SimpleNamespace(cls=[self._ids[n]], conf=[0.9], xyxy=[b]) for n, b in self._boxes]
         return [SimpleNamespace(boxes=boxes)]
 
@@ -107,6 +110,35 @@ def test_a_model_nothing_is_wanted_from_is_not_run(with_trained) -> None:
     assert (base.calls, mine.calls) == (0, 1)
     det.detect(FRAME, set())  # a body-actions-only procedure
     assert (base.calls, mine.calls) == (0, 1)
+
+
+def test_the_stock_model_is_not_asked_for_classes_it_was_never_taught() -> None:
+    # PROC-A before its model exists: none of its classes are stock names, so
+    # running the stock model would cost a full pass and find nothing it wants.
+    base = stock(BIG_BOTTLE)
+    det = Detector(base)
+    assert det.detect(FRAME, {"red_box_open", "sample_vial"}).objects == []
+    assert base.calls == 0
+    det.detect(FRAME, {"red_box_open", "bottle"})
+    assert base.calls == 1
+
+
+def test_the_input_size_goes_to_the_stock_model_only(with_trained) -> None:
+    # A trained detector runs at the size it learned at; forcing another on it
+    # would cost it accuracy for nothing.
+    det, base, mine = with_trained
+    det.use_detector("best.pt")
+    det.detect(FRAME, {"bottle_open", "cell phone"}, imgsz=416)
+    assert (base.imgsz, mine.imgsz) == (416, None)
+
+
+def test_the_pipeline_passes_its_input_size_on() -> None:
+    base = stock(BIG_BOTTLE)
+    pipeline = PerceptionPipeline(Detector(base), imgsz=320)
+    pipeline.body = False
+    pipeline.configure(want_rack=False, want_pose=False)
+    pipeline.observe(FRAME, 1, wanted={"bottle"})
+    assert base.imgsz == 320
 
 
 def test_the_pipeline_reports_everything_for_a_scene_procedure() -> None:

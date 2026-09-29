@@ -23,7 +23,7 @@ import numpy as np
 from orbital_har.core.types import Event, EventType, StepState
 from orbital_har.perception.capture import Camera, placeholder
 from orbital_har.perception.detect import Detector
-from orbital_har.perception.pipeline import PerceptionPipeline
+from orbital_har.perception.pipeline import DEFAULT_IMGSZ, PerceptionPipeline
 from orbital_har.reasoning.engine import Engine, EngineConfig
 from orbital_har.reasoning.schema import Procedure
 from orbital_har.runtime.experiments import compose
@@ -40,7 +40,18 @@ LOOP_PERIOD_S = 1.0 / 30.0
 #: needs its state kept fresh, and that should cost nothing.
 STANDBY_PERIOD_S = 0.1
 
-_MODE_LOOKAHEAD = {"clean": 0, "strict": 1}
+#: How far past the current step each run mode judges evidence (TRD section 7.5).
+#: Both look one step ahead, so doing the next step early is always caught:
+#: Clean completes it and raises a skip alert for the step passed over; Strict
+#: holds it out of sequence instead. Clean used to judge the current step
+#: alone, which made a skipped step invisible until its timeout.
+_MODE_LOOKAHEAD = {"clean": 1, "strict": 1}
+
+#: The frame rate procedure holds are written for (a laptop webcam through
+#: detection and pose, as the procedure tests replay it). Live, a hold means
+#: the time its frames span at this rate, so a slower machine does not make the
+#: operator freeze longer: twelve frames is 0.73 s at 4 FPS as at 15.
+HOLD_FPS = 15.0
 
 #: Session lifecycle (docs/03-APP-FLOW.md section 3). The camera is on in LIVE
 #: and COMPLETE and off in READY -- ending a run releases the device.
@@ -62,7 +73,8 @@ def make_engine(proc: Procedure, mode: str = "clean") -> Engine:
             tau_abstain=0.35,
             window_capacity=120,
             strict_preconditions=(mode == "strict"),
-            completion_lookahead=_MODE_LOOKAHEAD.get(mode, 0),
+            completion_lookahead=_MODE_LOOKAHEAD.get(mode, 1),
+            hold_fps=HOLD_FPS,
         ),
     )
 
@@ -342,6 +354,7 @@ class LiveSession:
         *,
         voice: Voice | None = None,
         mirror: bool = True,
+        imgsz: int | None = DEFAULT_IMGSZ,
     ) -> None:
         self.data_root = data_root
         self.sessions_root = data_root / "sessions"
@@ -354,7 +367,7 @@ class LiveSession:
 
         self.proc = proc
         self.detector = detector
-        self.pipeline = PerceptionPipeline(detector)
+        self.pipeline = PerceptionPipeline(detector, imgsz=imgsz)
         self.camera = camera if isinstance(camera, Camera) else Camera(camera)
         self.log: SessionLog | None = None
 

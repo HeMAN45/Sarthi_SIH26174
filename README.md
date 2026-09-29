@@ -14,7 +14,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![YOLO11](https://img.shields.io/badge/Ultralytics-YOLO11-111F68)
 ![Offline](https://img.shields.io/badge/network_at_runtime-none-2e9b55)
-![Tests](https://img.shields.io/badge/tests-465_passing-2e9b55)
+![Tests](https://img.shields.io/badge/tests-482_passing-2e9b55)
 
 [Overview](#overview) · [Features](#features) · [Quick start](#quick-start) · [Guide](#guide) · [Tech stack](#tech-stack) · [Architecture](#architecture) · [Docs](#documentation)
 
@@ -147,7 +147,7 @@ run; after that nothing touches the network.
 ### Run an experiment
 
 1. **Procedures** tab → *Built-in* → pick an experiment → **Load**.
-2. **Mission** tab → choose **Clean** (normal) or **Strict** (also flags steps done early) → **New run**.
+2. **Mission** tab → choose **Clean** (a step done early counts, and the one you skipped is alerted) or **Strict** (a step done early is held out of sequence) → **New run**.
 3. Follow the voice. An alert covers the top of the video until you press **Acknowledge** (or `Esc`).
 4. At the end a debrief shows every step with its timing; **End run** releases the camera.
 5. **Archive** tab → the run → its steps, alerts, video and **Verify chain**.
@@ -191,18 +191,20 @@ SARTHI checks and the exact builder settings.
 |---|---|---|
 | Raise a hand · Hand to face · Hand on head · Reach out | Both hands up · Hands together · Arms crossed · Arms out · Hands on hips | Wave · Lift · Lower · Clap |
 
-Hold each action about two seconds and keep both elbows in view. A laptop reads 3 to 4 frames a
-second with detection and pose, so make movements slow and wide.
+Hold each action for about a second and keep both elbows in view. Holds are timed in seconds, not
+frames, so a slower laptop does not make you hold longer. Movements are read from frame to frame,
+so on a laptop make them slow and wide.
 
 ### Alerts
 
 | Alert | When | Mode |
 |---|---|---|
-| **Wrong object** | You pick up what a later step needs | always |
+| **Skipped** | The next step is done before this one | Clean |
+| **Out of sequence** | The next step is done before this one; it waits for this one | Strict |
+| **Wrong object** | You pick up what a step further ahead needs | always |
 | **Wrong hand** | The other hand does a left or right step | always |
 | **No progress** | A step is left undone for its time limit | always |
 | **Cannot verify** | The evidence is too weak to trust | always |
-| **Skipped / out of sequence** | A later step is done before this one | Strict |
 
 ---
 
@@ -220,7 +222,7 @@ second with detection and pose, so make movements slow and wide.
 | **Voice** | **Piper** text to speech, on device, pre-rendered prompts |
 | **Video** | OpenCV mp4 recording · FFmpeg RTSP publishing |
 | **Dashboard** | **React 19** · TypeScript · Vite · Lucide icons · Geist font bundled |
-| **Quality** | pytest (465 tests, golden replay corpus) · ruff · import-linter · oxlint · GitHub Actions |
+| **Quality** | pytest (482 tests, golden replay corpus) · ruff · import-linter · oxlint · GitHub Actions |
 
 ---
 
@@ -259,11 +261,12 @@ does not change.
 1. Every frame, perception emits detections, hand contacts, pose and body actions.
 2. Each step lists **predicates**: `detect`, `contact` (optionally with a hand), `gesture`,
    `tilted` (pouring), `moved`, `dwell` (in a region), `near`, `count`, `absent`.
-3. A predicate must hold for a few consecutive frames, so a flicker is not a step.
+3. A predicate must hold for a moment (timed in seconds, not frames), so a flicker is not a step.
 4. The engine completes a step above a confidence threshold, and below another it says
    **cannot verify** instead of guessing.
-5. Only the current step is judged (and the next one in Strict mode), so resting state, like a
-   bottle already standing in its place, never completes a later step by accident.
+5. Only the current step and the next one are judged, so resting state, like a bottle already
+   standing in its place, never completes a later step by accident. Nor does evidence left over
+   from the step before: two hands meeting to open a cap do not also close it.
 
 </details>
 
@@ -297,7 +300,7 @@ is **SARTHI**.
 ## Testing and quality
 
 ```bash
-uv run pytest                  # 465 tests, including the golden replay corpus
+uv run pytest                  # 482 tests, including the golden replay corpus
 uv run ruff check .            # lint
 uv run lint-imports            # perception and reasoning never import each other
 uv run orbital-har demo proc_a_skip_s4    # replay a recorded run with a skipped step

@@ -25,6 +25,14 @@ opened them. Ambient state is not proof that the operator did something. The
 cost is that jumping more than the lookahead ahead goes undetected, which is
 the safer failure -- we stay silent rather than inventing a verdict.
 
+*Evidence is not inherited.* A step that comes up for judgement while its
+evidence is already in view does not complete on it: that evidence must end
+and begin again. "Open the cap" and "close the cap" can both be two hands
+meeting at the bottle; without this, closing completes on the same handshake
+that opened it, the moment opening is done, and the drink in between is
+reported skipped. The check is instantaneous (every hold one frame), so a later
+step with a longer hold cannot wait the inherited evidence out.
+
 *Handling is not resting state.* What the lookahead cannot see, a hand can:
 picking up an object that only a later step uses is the operator starting an
 out-of-sequence step, and that is alerted straight away (``WRONG_OBJECT``). It
@@ -88,6 +96,11 @@ class EngineConfig:
     #: How far past the frontier a step may be and still be judged. Keeps
     #: resting-state evidence in far-future steps from firing spuriously.
     completion_lookahead: int = 2
+    #: The frame rate every ``*_hold_frames`` is written for. When set, a hold
+    #: is the duration those frames span at this rate, whatever the camera
+    #: actually delivers (``Window.streak``). None counts frames, which is right
+    #: for a replay of a recording.
+    hold_fps: float | None = None
     window_capacity: int = 240
     #: D-07 free-float advisory. A tether-required object moving faster than
     #: this while nothing is touching it is drifting, not being handled.
@@ -138,6 +151,11 @@ class StepRuntime:
     reason: str = ""
     streak: int = 0
     low_conf_since: float | None = None
+    #: When the step first came up for judgement (see ``Engine._eligible``).
+    eligible_t: float | None = None
+    #: False while the evidence the step inherited is still in view. A step
+    #: completes only once armed (see ``Engine._tick``).
+    armed: bool = True
     _latched: dict[str, PredicateResult] = field(default_factory=dict)
 
     @property
@@ -307,6 +325,12 @@ class Engine:
         for rt in self.runtimes:
             if rt.state in RESOLVED_STATES or not self._eligible(rt, frontier):
                 continue
+            if rt.eligible_t is None:
+                rt.eligible_t = t
+                # At the start of a run there is no earlier step to inherit from.
+                rt.armed = len(self.window) <= 1
+            if not rt.armed:
+                rt.armed = not self._evaluate(rt, instant=True).satisfied
             result = self._evaluate(rt)
             satisfied, confidence = result.satisfied, result.confidence
             rt.confidence = confidence
@@ -314,7 +338,7 @@ class Engine:
             if result.best_confidence > 0.0 and rt.first_evidence_t is None:
                 rt.first_evidence_t = t
 
-            if not satisfied:
+            if not satisfied or not rt.armed:
                 rt.streak = 0
                 rt.low_conf_since = None
                 continue
@@ -348,8 +372,8 @@ class Engine:
         now = next((rt for rt in self.runtimes if rt.state == StepState.ACTIVE), None)
         if now is None or now.activated_t is None:
             return []
-        frames = self.window.last(cfg.wrong_hand_hold_frames)
-        if len(frames) < cfg.wrong_hand_hold_frames:
+        frames = self.window.streak(cfg.wrong_hand_hold_frames, fps=cfg.hold_fps)
+        if frames is None:
             return []
 
         for p in (*now.step.requires, *now.step.any_of):
@@ -449,8 +473,8 @@ class Engine:
         if not wrong:
             return []
 
-        frames = self.window.last(cfg.wrong_object_hold_frames)
-        if len(frames) < cfg.wrong_object_hold_frames:
+        frames = self.window.streak(cfg.wrong_object_hold_frames, fps=cfg.hold_fps)
+        if frames is None:
             return []
         held = [self._handled(f) for f in frames]
         suspects = set(wrong).intersection(*held)
@@ -568,15 +592,25 @@ class Engine:
             return True
         return rt.ordinal <= frontier + self.config.completion_lookahead
 
-    def _evaluate(self, rt: StepRuntime) -> StepEvaluation:
-        ctx = EvalContext(window=self.window, procedure=self.procedure, step_started_t=rt.origin_t)
+    def _evaluate(self, rt: StepRuntime, instant: bool = False) -> StepEvaluation:
+        """Judge a step on the window. ``instant`` asks only whether its evidence
+        is in view in the latest frame, ignoring holds and latches."""
+        ctx = EvalContext(
+            window=self.window,
+            procedure=self.procedure,
+            step_started_t=rt.origin_t,
+            hold_fps=self.config.hold_fps,
+            instant=instant,
+        )
         evidence: list[str] = []
         confidences: list[float] = []
         best = 0.0
 
         required_ok = True
         for i, p in enumerate(rt.step.requires):
-            result = self._resolve_latch(rt, f"r{i}", p, evaluate(p, ctx))
+            result = evaluate(p, ctx)
+            if not instant:
+                result = self._resolve_latch(rt, f"r{i}", p, result)
             evidence.append(describe(p, result))
             confidences.append(result.confidence)
             best = max(best, result.confidence)
@@ -588,7 +622,9 @@ class Engine:
             any_ok = False
             best_alt = 0.0
             for i, p in enumerate(rt.step.any_of):
-                result = self._resolve_latch(rt, f"a{i}", p, evaluate(p, ctx))
+                result = evaluate(p, ctx)
+                if not instant:
+                    result = self._resolve_latch(rt, f"a{i}", p, result)
                 evidence.append(describe(p, result))
                 best = max(best, result.confidence)
                 if result.satisfied:

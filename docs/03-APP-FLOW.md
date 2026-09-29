@@ -181,9 +181,10 @@ Step T completes with an unmet precondition of higher ordinal
 Under `strict_preconditions: true` the behaviour changes - the step enters `OUT_OF_ORDER`,
 is not marked complete, and re-evaluates once its preconditions are met. See TRD §7.6.
 
-**Which mode detects what.** §6.2 and §6.3 need the later step to be judged, which only
-Strict mode's lookahead does (Clean judges the current step alone, TRD §7.5). The
-wrong-object alert (§6.3a) works in both.
+**Which mode detects what.** Both modes judge one step ahead (TRD §7.5), so a step done
+before its turn is always caught: Clean completes it and raises §6.2's skip alert for the
+step passed over, Strict holds it out of sequence. Handling an object that only a step
+further ahead uses is §6.3a's wrong-object alert, in both modes.
 
 ### 6.3a Wrong object
 

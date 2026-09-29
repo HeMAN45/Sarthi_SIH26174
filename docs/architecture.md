@@ -152,6 +152,10 @@ makes predicates trivial.
 Prevents state flicker on a single bad frame. This is the parameter you will spend the
 most tuning time on. Budget for it.
 
+Live it is a duration, not a count: `hold_frames` is written for 15 FPS and means the time
+those frames span (or write `hold_s`). A frame count would make the operator hold still
+four times longer on a laptop than on the machine it was tuned on. See TRD §7.4.
+
 ---
 
 ## 5. Training plan

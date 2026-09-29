@@ -94,7 +94,7 @@ find yourself needing perception to test the engine, the seam has been broken.
 
 ## Current state
 
-**The pipeline runs end to end on a camera.** 465 tests pass; ruff, the import-boundary
+**The pipeline runs end to end on a camera.** 482 tests pass; ruff, the import-boundary
 contract and the offline guard are all green.
 
 Built and working:

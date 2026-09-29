@@ -59,7 +59,7 @@ class ScriptedDetector(Detector):
         super().__init__(SimpleNamespace(names=dict(enumerate(classes))))
         self.seen: list[str] = []
 
-    def detect(self, frame, wanted, min_area=0.06, multi=False) -> DetectionResult:
+    def detect(self, frame, wanted, min_area=0.06, multi=False, imgsz=None) -> DetectionResult:
         return DetectionResult(
             objects=[
                 {"cls": c, "conf": 0.95, "bbox": [0.0, 0.0, 32.0, 24.0], "track_id": None}

@@ -200,6 +200,10 @@ and everything else is a sibling key.
 | `count` | `count: <class>` + `n, min_conf, hold_frames` | Exactly N instances present |
 | `gesture` | `gesture: <name>` + `side, min_conf, hold_frames` | A body action held for N frames, read from pose in the body's own frame (list below) |
 
+Every predicate that takes `hold_frames` also takes `hold_s`, a hold in seconds that wins
+when given. In the live console both are durations (§7.4), so a procedure means the same
+thing on a slow laptop as on a Jetson.
+
 Gestures are orientation-free by construction: *up* is the hips-to-shoulders axis (or shoulders-to-head when the hips are out of frame), *across* runs from the right shoulder to the left, and distances are in shoulder widths, so an operator working inverted raises a hand exactly as one standing does. Unknown gesture names are refused at load.
 
 | Kind | Gestures | Read from |
@@ -254,7 +258,7 @@ publish `alert.degraded` and fall back to identity.
 | Parameter | Value |
 |---|---|
 | Model | YOLO11s (DEV/EDGE), YOLO11m for accuracy comparison |
-| Input | 640×640 letterboxed |
+| Input | 640×640 letterboxed for the trained model. Live, the stock stand-in and pose run at 416 on a CPU (`DEFAULT_IMGSZ`, `--imgsz`): against 640 it keeps 94% of objects and finds the person in every frame, at 37 ms instead of 67 (detection) and 40 instead of 74 (pose). A model trained on the device runs at the size it was trained at |
 | Classes | See appendix A |
 | Confidence floor | 0.35 publish, 0.60 predicate default |
 | NMS IoU | 0.5 |
@@ -337,9 +341,16 @@ a confidently wrong verdict is worse than no verdict.
 
 ### 7.4 Hysteresis
 
-Every transition requires evidence stable for `hold_frames` (default 12 ≈ 0.4 s at 30 FPS).
-This single parameter dominates false-alert rate and will consume the most tuning time.
-It is per-predicate overridable.
+Every transition requires evidence stable for a hold. This single parameter dominates
+false-alert rate and will consume the most tuning time. It is per-predicate overridable.
+
+A hold is written as `hold_frames` for a reference rate of **15 FPS** (`HOLD_FPS`), or as
+`hold_s` directly. The live console treats it as a **duration**: twelve frames is the
+0.73 s they span at 15 FPS, whatever the camera actually delivers (`Window.streak`).
+Counted in raw frames, the same hold was 0.4 s at 30 FPS and three seconds at the 3-4 FPS
+a laptop CPU gives, and the operator had to freeze for all of it. A replay with no
+reference rate counts frames, which is right for a recording. The engine's own holds
+(wrong object, wrong hand) follow the same rule.
 
 ### 7.5 Completion frontier
 
@@ -354,10 +365,21 @@ procedure skipped. **Ambient state is not evidence that the operator did somethi
 The cost is that jumping more than the lookahead ahead goes undetected. That is the safer
 failure: the system stays silent rather than inventing a verdict.
 
-The live console sets the lookahead per run mode: **Clean 0** (only the current step is
-judged) and **Strict 1** (the next step too, with `strict_preconditions`). A step done
-before its turn is therefore only *verdicted* in Strict mode; §7.7 is what catches it in
-both.
+The live console judges **one step ahead in both run modes**. Doing the next step while
+the current one is undone is therefore always caught: **Clean** completes it and raises a
+skip alert for the step passed over (§7.6); **Strict** holds it `OUT_OF_ORDER` instead.
+Clean used to judge the current step alone, which made a skipped step invisible until
+its timeout - replaying `proc_a_skip_s4` through it raised no alert at all. Jumping two
+or more steps ahead is left to §7.7.
+
+**Evidence is not inherited.** A step that comes up for judgement while its evidence is
+already in view does not complete on it: that evidence must end and begin again. "Open
+the cap" and "close the cap" can both be two hands meeting at the bottle; without this
+rule, closing completes on the very handshake that opened it the moment opening is done,
+and the drink between them is reported skipped. The check is instantaneous (every hold
+reduced to one frame), so a later step with a longer hold cannot wait inherited evidence
+out. The start of a run is exempt: there is no earlier step to inherit from, and the
+resting scene is the lookahead's job.
 
 ### 7.6 Completion and preconditions
 
@@ -388,7 +410,7 @@ presentation procedure, being presented is handling it. The rules that keep it q
 - **It must appear.** Something in view since the step began (plus a 2 s grace for the
   camera settling) is the resting scene, not an action - the bottle standing at home at the
   start of a run is the last step's state, not a skip.
-- **Held, then rationed.** Six consecutive frames of evidence, the right object not also in
+- **Held, then rationed.** Six frames of evidence (a duration live, §7.4), the right object not also in
   hand, and one alert per step and object per 10 s.
 
 `EngineConfig.wrong_object_*` tunes or disables it. Objects no step uses at all are not

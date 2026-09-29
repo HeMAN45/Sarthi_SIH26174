@@ -149,7 +149,7 @@ class _StubDetector:
         self.open_vocab = False
         self.mode = "stub"
 
-    def detect(self, frame, wanted, min_area=0.06, multi=False):
+    def detect(self, frame, wanted, min_area=0.06, multi=False, imgsz=None):
         from orbital_har.perception.detect import DetectionResult
 
         return DetectionResult(

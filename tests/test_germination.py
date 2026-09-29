@@ -50,13 +50,17 @@ def test_a_correct_check_completes_every_step() -> None:
     assert r.engine.is_complete and r.alerts == []
 
 
-def test_picking_up_the_tablet_to_water_is_a_wrong_object() -> None:
+def test_photographing_before_watering_skips_the_watering() -> None:
+    # Clean mode judges the next step too, so taking the photo while the
+    # procedure is on "water the seeds" is the photo step done early: watering
+    # was passed over. One mistake, one alert -- a skip, not a wrong object too.
     r = Replay("seed_germination.yaml")
     pot(r, 8, touch=True)
     r.scene(40)  # a few seconds into "water the seeds"
     held(r, 10, "cell phone")
-    assert ("wrong_object", "s3") in r.alerts
-    assert not r.done("s3")
+    assert r.done("s3")
+    assert r.state("s2") == StepState.SKIPPED
+    assert r.alerts == [("skip", "s2")]
 
 
 def test_strict_mode_flags_returning_the_tray_before_the_photo() -> None:

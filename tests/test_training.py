@@ -128,7 +128,7 @@ class _Painter(Detector):
     def __init__(self) -> None:
         super().__init__(SimpleNamespace(names={0: "compass"}))
 
-    def detect(self, frame, wanted, min_area=0.06, multi=False) -> DetectionResult:
+    def detect(self, frame, wanted, min_area=0.06, multi=False, imgsz=None) -> DetectionResult:
         from orbital_har.perception.detect import Candidate
 
         box = (4.0, 10.0, 20.0, 40.0)

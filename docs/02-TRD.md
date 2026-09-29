@@ -217,10 +217,13 @@ Gestures are orientation-free by construction: *up* is the hips-to-shoulders axi
 The stock detector loses a bottle once it is tipped past ~30° (1 of 10 rotated photos found at 30-45°, none at 60-90°), so a reliable `tilted` needs the object trained on the device with pouring photos.
 
 Every predicate also accepts `latch: bool` (default false). A latched predicate, once
-satisfied during a step activation, stays satisfied for the remainder of that activation.
+satisfied while its step is being judged, stays satisfied until the step is resolved.
 This is required for transient evidence: *"the operator did pick up the red box"* is true
 of the step even though the hand is long gone by the time the box reaches its marker.
-Latching is per-activation state and is held by the engine, not the evaluator.
+Latching is held by the engine, not the evaluator. It starts when the step comes up for
+judgement (and is armed, §7.5), not when it becomes active: in continuous work the
+operator picks up the next box while the last one is still being confirmed, and erasing
+that on activation left the step waiting for a touch that would never come again.
 
 **`min_conf` is a detection floor, not a decision threshold.** It asks whether the evidence
 exists at all; whether it is good enough to act on is the engine's call via `τ_complete`

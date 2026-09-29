@@ -646,7 +646,7 @@ class Engine:
         required_ok = True
         for i, p in enumerate(rt.step.requires):
             result = evaluate(p, ctx)
-            if not instant:
+            if not instant and rt.armed:
                 result = self._resolve_latch(rt, f"r{i}", p, result)
             evidence.append(describe(p, result))
             confidences.append(result.confidence)
@@ -660,7 +660,7 @@ class Engine:
             best_alt = 0.0
             for i, p in enumerate(rt.step.any_of):
                 result = evaluate(p, ctx)
-                if not instant:
+                if not instant and rt.armed:
                     result = self._resolve_latch(rt, f"a{i}", p, result)
                 evidence.append(describe(p, result))
                 best = max(best, result.confidence)
@@ -681,10 +681,13 @@ class Engine:
     def _resolve_latch(
         rt: StepRuntime, key: str, predicate: Any, result: PredicateResult
     ) -> PredicateResult:
-        """Latched predicates stay satisfied for the rest of the activation.
+        """Latched predicates stay satisfied until the step is resolved.
 
         Needed for evidence that is transient by nature: the operator did hold
-        the red box, even though they have long since put it down.
+        the red box, even though they have long since put it down. Only a step
+        that is armed latches (see ``_tick``), so what is latched is the
+        operator's own doing since the step came up for judgement, never
+        evidence left over from the step before.
         """
         if not predicate.latch:
             return result
@@ -709,7 +712,10 @@ class Engine:
         rt.activated_t = t
         rt.streak = 0
         rt.low_conf_since = None
-        rt._latched.clear()
+        # Latches survive activation. What the operator did while the step
+        # was already being judged -- picking up the yellow box while the red
+        # one was still being confirmed -- is evidence; erasing it here left
+        # the step waiting for a touch that would never come again.
         return self._emit_state(rt, t)
 
     def _ensure_active(self, t: float) -> list[Event]:

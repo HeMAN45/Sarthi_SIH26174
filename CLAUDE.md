@@ -139,7 +139,10 @@ Built and working:
   a hand or arm is background by construction (`tests/test_boxes.py`).
 - **procedures** - `drink_water.yaml`: five steps from scene-state classes, one class
   serving two steps; `drink_water_body.yaml`: the same five from contact, gestures and a
-  home region, no training (`tests/test_drink_water.py`).
+  home region, no training (`tests/test_drink_water.py`). `bench_sample.yaml`: the PS
+  sample experiment worked continuously at a bench, colour-found boxes moved between
+  taped zones, judged by where things end up and a hand having handled them; nothing
+  held up, no gesture signals, no training (`tests/test_bench_sample.py`).
 - **lifecycle** - Ready → Live → Complete. The camera belongs to a run: off in Ready,
   powered by New run, released by End run (`tests/test_session.py`).
 

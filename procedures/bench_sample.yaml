@@ -1,0 +1,118 @@
+# BENCH-SAMPLE - the problem statement's sample experiment, done at a bench
+#
+# A box holds two smaller boxes, red and yellow; the red one holds a sample.
+# Here the operator simply works. Nothing is held up to the camera and no
+# gesture says "done": each step is judged by where things end up, and by a
+# hand having actually handled them. Every object is found by its colour, so
+# nothing needs training.
+#
+#   1  red box out, onto zone R        a hand on it, then it sits in zone R
+#   2  yellow box out, onto zone Y     a hand on it, then it sits in zone Y
+#   3  sample from red box to yellow   a hand on the sample, then it sits in zone Y
+#   4  both boxes back in stowage      both sit in the stowage zone
+#
+# Setup:
+#   - Camera fixed across the bench, facing the operator: the bench in the
+#     lower half of the picture, arms and shoulders in the upper half (hands
+#     come from body tracking, so the elbows must be in view).
+#   - Three zones taped on the bench to match the saffron boxes on the camera
+#     view, left to right: stowage, zone R, zone Y. Move them by editing the
+#     rects below (fractions of the frame, x0 y0 x1 y1, the camera's true view;
+#     the screen is mirrored and the boxes follow it).
+#   - Solid red and yellow boxes, open-topped or lidless so the camera sees in,
+#     and a solid blue object as the sample, inside the red box. The colour
+#     finder ignores specks under 0.2% of the picture (about 25 x 25 px at
+#     640 x 480), so the sample must look at least that big: roughly 5 cm
+#     across with the camera within 80 cm of the bench.
+#   - A plain bench: nothing else red, yellow or blue in view. The colour
+#     finder takes the largest block of each colour, so a red mug next to the
+#     bench is a red box too.
+#   - Start with both boxes in stowage.
+#
+# Mistakes it catches, in Clean mode:
+#   - Yellow box set out before the red one: "Step skipped" for the red box.
+#   - The sample picked up before the boxes are out: wrong object, at once.
+#   - Boxes stowed before the sample moved: "Step skipped" for the transfer.
+#   - A step left undone for 90 s: no progress.
+# Strict mode holds an early step out of sequence instead of skipping.
+
+procedure:
+  id: bench_sample
+  name: Sample transfer at the bench
+  version: 1
+  rack_markers: DICT_4X4_50
+  vocabulary: colour
+
+markers: []
+regions:
+  - id: stowage
+    rect: [0.03, 0.55, 0.32, 0.98]
+  - id: zone_r
+    rect: [0.35, 0.55, 0.64, 0.98]
+  - id: zone_y
+    rect: [0.67, 0.55, 0.97, 0.98]
+
+objects:
+  - id: red_box
+    classes: [red_box]
+    color: red
+  - id: yellow_box
+    classes: [yellow_box]
+    color: yellow
+  - id: sample
+    classes: [sample]
+    color: blue
+
+steps:
+  - id: s1
+    name: Set the red box on zone R
+    voice: "Sample transfer. Step one. Take the red box out and set it on zone R."
+    preconditions: []
+    requires:
+      - contact: [hand, red_box]
+        latch: true
+      - dwell: red_box
+        region: zone_r
+        seconds: 1.5
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s2
+    name: Set the yellow box on zone Y
+    voice: "Step two. Take the yellow box out and set it on zone Y."
+    preconditions: [s1]
+    requires:
+      - contact: [hand, yellow_box]
+        latch: true
+      - dwell: yellow_box
+        region: zone_y
+        seconds: 1.5
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s3
+    name: Move the sample to the yellow box
+    voice: "Step three. Move the sample from the red box to the yellow box."
+    preconditions: [s2]
+    requires:
+      - contact: [hand, sample]
+        latch: true
+      - dwell: sample
+        region: zone_y
+        seconds: 1.5
+    timeout_s: 90
+    on_timeout: stall
+
+  - id: s4
+    name: Put both boxes back in stowage
+    voice: "Step four. Put both boxes back in stowage."
+    preconditions: [s3]
+    requires:
+      - dwell: red_box
+        region: stowage
+        seconds: 1.5
+      - dwell: yellow_box
+        region: stowage
+        seconds: 1.5
+    timeout_s: 90
+    on_timeout: stall

@@ -174,6 +174,7 @@ run; after that nothing touches the network.
 
 | Experiment | What it shows | Training |
 |---|---|---|
+| **Sample transfer at the bench** | The problem statement's sample experiment, worked naturally at a bench: red and yellow boxes out onto their zones, the sample moved across, both stowed. Nothing held up to the camera; objects found by colour | none |
 | **Seed germination check** | ISRO's Axiom-4 sprouting experiment: tray out, water, photograph, return to the growth chamber | none |
 | **Crew fitness and hydration check** | Left and right hand steps, a wave, lifting the bottle while holding it; the wrong-hand alert | none |
 | **Potable water sampling** | Two objects in one step; the wrong-object alert | none |

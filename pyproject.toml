@@ -62,7 +62,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-q"
 
-# Architectural invariant #2 from CLAUDE.md: perception and reasoning never import
+# Architectural invariant #2 from INVARIANTS.md: perception and reasoning never import
 # each other. They communicate only through core.bus.
 [tool.importlinter]
 root_packages = ["orbital_har"]

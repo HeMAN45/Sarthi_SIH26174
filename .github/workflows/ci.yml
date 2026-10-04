@@ -25,7 +25,7 @@ jobs:
       - name: Format check
         run: uv run ruff format --check .
 
-      # Invariant #2 (CLAUDE.md): perception and reasoning never import each other.
+      # Invariant #2 (INVARIANTS.md): perception and reasoning never import each other.
       - name: Architecture boundaries
         run: uv run lint-imports
 

@@ -42,7 +42,7 @@ CLS_MIN_CONF = 0.60
 CLS_MIN_MARGIN = 0.15
 
 #: Box-detector confidence floor. Distinct from the engine's decision
-#: thresholds; see CLAUDE.md invariant #12.
+#: thresholds; see INVARIANTS.md invariant #12.
 BOX_MIN_CONF = 0.35
 
 COCO80 = sorted(

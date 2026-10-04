@@ -14,7 +14,7 @@ procedure can refer to by name.
 *Canonicalization.* We rotate the **input frame** so the rack is upright before
 anything looks at it -- never the model's output. Rotating output does not work:
 an inverted operator was never detected in the first place, so there is no
-output to rotate (CLAUDE.md invariant #4, TRD section 6.1).
+output to rotate (INVARIANTS.md invariant #4, TRD section 6.1).
 
 Nothing here may import from ``orbital_har.reasoning``.
 """

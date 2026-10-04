@@ -1,7 +1,7 @@
 """Procedure definition schema and loader.
 
 A procedure is data. The engine never changes when a procedure does -- that is
-invariant #5 in CLAUDE.md and the basis of differentiator D-02.
+invariant #5 in INVARIANTS.md and the basis of differentiator D-02.
 
 Validation is strict and fails loudly with a field path: per FR-11 the system
 must refuse to start on an invalid procedure rather than discover the problem

@@ -6,7 +6,7 @@ loads - and the failure mode is the worst kind: a model trained on classes the
 procedure never asks for, discovered at step seven in front of a jury.
 
 Object *states* are distinct classes (``red_box_open``, not ``red_box`` plus a
-state head). That is CLAUDE.md invariant #8 and it is what keeps the perception
+state head). That is INVARIANTS.md invariant #8 and it is what keeps the perception
 stack single-stage.
 """
 

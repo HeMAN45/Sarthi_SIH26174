@@ -45,3 +45,6 @@ agent/
 graphify-out/
 brag-output*/
 skills-lock.json
+
+# Pitch decks live outside the code repo (see commit history)
+*.pptx

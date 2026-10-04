@@ -1,6 +1,6 @@
 """Invariant #1: zero network at runtime.
 
-CLAUDE.md forbids any outbound call to a non-loopback address. A judge who opens
+INVARIANTS.md forbids any outbound call to a non-loopback address. A judge who opens
 a network tab will check, and one cloud dependency invalidates the entire
 offline premise the product rests on.
 

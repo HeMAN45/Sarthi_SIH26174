@@ -2,7 +2,7 @@
 
 Both halves of PS bullet 5. They degrade independently on purpose: losing the
 RTSP sink must never stop the local recording, and losing video altogether must
-never stop supervision (CLAUDE.md invariant #9). Every failure in here is
+never stop supervision (INVARIANTS.md invariant #9). Every failure in here is
 logged, swallowed and given a reason the HUD can show (invariant #10).
 
 Recording is on by default because the PS requires storing the video locally.

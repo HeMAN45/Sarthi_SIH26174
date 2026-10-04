@@ -15,7 +15,7 @@ Read in order for the full picture. Each document states its own scope and links
 | 5 | [Backend schema](05-BACKEND-SCHEMA.md) | Where data lives and in what shape |
 | 6 | [Implementation plan](06-IMPLEMENTATION-PLAN.md) | Who builds what, when, and what to cut |
 
-Project-wide coding rules and invariants live in [CLAUDE.md](../CLAUDE.md) at the repo root.
+Project-wide coding rules and invariants live in [INVARIANTS.md](../INVARIANTS.md) at the repo root.
 
 ## Quick reference
 
@@ -24,6 +24,6 @@ retraining - TRD appendix A.
 
 **Eight differentiators** D-01…D-08, each with a scripted demo moment - PRD §8.
 
-**Ten invariants** that must never be violated - CLAUDE.md.
+**Ten invariants** that must never be violated - INVARIANTS.md.
 
 **Descope ladder** for when the schedule slips - implementation plan §12.

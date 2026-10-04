@@ -3,7 +3,7 @@
 Deliberately thin. The only judgement here is that losing the camera is a
 degradation to be *shown*, not an exception to crash on: the engine keeps its
 state, the dashboard keeps rendering, and the placeholder frame says out loud
-what is wrong (CLAUDE.md invariant #10).
+what is wrong (INVARIANTS.md invariant #10).
 
 Nothing here may import from ``orbital_har.reasoning``.
 """

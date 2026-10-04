@@ -37,3 +37,11 @@ Thumbs.db
 models/voices/
 # Pre-synthesized prompt cache, rebuilt on demand from the voice model.
 data/voice/
+
+# Local tooling and generated output - not part of the project
+.agents/
+.claude/
+agent/
+graphify-out/
+brag-output*/
+skills-lock.json

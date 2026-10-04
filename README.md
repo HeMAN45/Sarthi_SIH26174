@@ -4,9 +4,9 @@
 
 # SARTHI
 
-### The on-board assistant that watches a space experiment, guides every step and catches mistakes. Fully offline.
+### The on-board crew assistant that watches a space experiment, guides every step out loud, and catches mistakes the moment they happen. Fully offline.
 
-**Smart India Hackathon 2026** · Problem Statement **SIH26174** · ISRO / Department of Space · **Team Hashira**
+<br />
 
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-server-009688?logo=fastapi&logoColor=white)
@@ -16,7 +16,9 @@
 ![Offline](https://img.shields.io/badge/network_at_runtime-none-2e9b55)
 ![Tests](https://img.shields.io/badge/tests-518_passing-2e9b55)
 
-[Overview](#overview) · [Features](#features) · [Quick start](#quick-start) · [Guide](#guide) · [Tech stack](#tech-stack) · [Architecture](#architecture) · [Docs](#documentation)
+**Smart India Hackathon 2026** &nbsp;·&nbsp; Problem Statement **SIH26174** &nbsp;·&nbsp; ISRO / Department of Space &nbsp;·&nbsp; **Team Hashira**
+
+[Overview](#overview) · [How it answers SIH26174](#how-sarthi-answers-sih26174) · [See it run](#see-it-run) · [Features](#features) · [Architecture](#architecture) · [Docs](#documentation)
 
 <br />
 
@@ -29,99 +31,122 @@
 ## Overview
 
 On the **Bharatiya Antariksh Station (BAS)** and on lunar missions, the ground cannot watch every
-experiment live: communication is delayed and bandwidth is scarce. A missed step, a wrong sample
-container or a skipped log entry can cost the science.
+experiment live. Communication is delayed, bandwidth is scarce, and a crew member is running a
+precise protocol alone. A missed step, the wrong sample container, or a skipped log entry can quietly
+cost the science, and nobody on the ground finds out until it is too late to fix.
 
-**SARTHI** is an AI human activity recognition system that runs **on board**. A fixed payload
-camera watches the crew member; SARTHI knows the experiment's steps, recognises the objects and
-what the person is doing with them, **speaks the next step**, raises a **voice alert** the moment
-something goes wrong, and writes a **timestamped, tamper-evident log** that is sent to the ground
-instead of raw video.
+**SARTHI puts the supervisor on board.** A fixed payload camera watches the crew member. SARTHI
+knows the experiment's steps, recognises the objects and what the person is doing with them,
+**speaks the next step**, raises a **voice alert the instant something goes wrong**, and writes a
+**timestamped, tamper-evident log** that is sent to the ground instead of raw video. It runs on a
+laptop CPU, and it touches the network **zero** times while it does.
 
-> *Sarthi* means charioteer: the one who guides. The name also reads as **S**atellite **A**ssistant
+> *Sarthi* means charioteer: the one who guides. It also reads as **S**atellite **A**ssistant
 > for **R**esearch, **T**actical **H**olistic & **I**nterface.
 
-### What the problem statement asks, and where SARTHI answers it
+<br />
 
-| SIH26174 asks for | SARTHI |
+<div align="center">
+
+**Watches** &nbsp;→&nbsp; **Understands** &nbsp;→&nbsp; **Guides out loud** &nbsp;→&nbsp; **Alerts on error** &nbsp;→&nbsp; **Logs, tamper-evident**
+
+</div>
+
+---
+
+## How SARTHI answers SIH26174
+
+Every line of the problem statement, mapped to the feature that answers it.
+
+| SIH26174 asks for | SARTHI delivers |
 |---|---|
-| Continuously process local video to track the experiment | Live pipeline: camera, object detection, pose, hand contact and gestures, every frame |
+| Continuously process local video to track the experiment | Live pipeline every frame: camera, object detection, pose, hand contact and gestures |
 | Suggest the next step, at the start and after each step | Spoken prompt from an on-device voice, plus the step on screen |
-| Voice alert when a step is skipped or out of sequence | Skip and out-of-sequence alerts, plus **wrong object** and **wrong hand** |
+| Voice alert when a step is skipped or out of sequence | Skip and out-of-sequence alerts, **plus wrong object and wrong hand** |
 | A timestamped, structured, lightweight text log | Per-run JSONL chained with SHA-256: a few kilobytes, verifiable byte by byte |
 | Stream video to an IP and store it locally | Local mp4 recording on by default, RTSP stream with `--rtsp` |
 | A GUI to monitor all of it | React console: Mission, Procedures, Models, Archive |
 | Dataset generation and a trained model, offline | On-device training from your own photos or video, plus a dataset pipeline |
-| Optional: no fixed up or down in orbit | Body actions measured in the body's own frame; rack-relative positions from ArUco markers |
+| Optional: no fixed up or down in orbit | Body actions read in the body's own frame; rack positions from ArUco markers |
+
+> **The brief is the baseline, not the ceiling.** Wrong-object and wrong-hand detection,
+> orientation-agnostic body tracking, a no-code experiment builder, and on-device training all go
+> beyond what SIH26174 asks for.
 
 ---
 
-## Features
+## Why this is the right solution
 
-| | |
-|---|---|
-| **Human activity recognition** | 13 body actions read from the skeleton: 9 postures and 4 movements (wave, lift, lower, clap). One-hand actions can require the **left or right** hand. |
-| **Hand and object interaction** | Knows which hand touches which object, and what is done with it: **show, hold, pour, move**, or put it back in its place. |
-| **Objects** | 80 everyday objects out of the box, several at once. Teach it your own objects or object states (cap on, cap off) from photos or a short video, no box drawing. A solid-coloured block, like a blue cube, is found by its colour with no training at all. |
-| **Orientation-agnostic** | Every posture is measured against the body's own axis, so a crew member upside down raises a hand exactly as one standing does. |
-| **Step-by-step supervision** | Steps are judged in order with confidence thresholds; the system says *cannot verify* rather than guess. |
-| **Spoken alerts** | Wrong object, wrong hand, skipped step, out of sequence, no progress, cannot verify. |
-| **Experiments are files** | Every experiment is a YAML procedure. Build one in the no-code builder, save it by name, run it again any time. |
-| **Tamper-evident record** | Hash-chained telemetry; the Archive re-verifies it and names the exact record if a byte changed. |
-| **Offline and edge-ready** | No cloud, no telemetry upload, no CDN. A test guards it. Runs on a laptop CPU; export path to a Jetson. |
+### Unique
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/procedures.png" alt="Procedures: saved experiments, built-in library and the builder" /></td>
-    <td width="50%"><img src="docs/images/models.png" alt="Models: teach SARTHI new objects in five stages" /></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Procedures</b>: build, save and run experiments</td>
-    <td align="center"><b>Models</b>: teach new objects on the device</td>
-  </tr>
-</table>
+- **It judges honestly, and says when it cannot.** Below its confidence threshold SARTHI publishes
+  **cannot verify** instead of guessing. In a safety-critical science setting a confidently wrong
+  verdict is worse than no verdict, so the engine is built to abstain. Most activity-recognition
+  demos only ever output their single best guess.
+- **It catches the mistakes the brief does not name.** Beyond skipped and out-of-sequence, SARTHI
+  raises **wrong object** (you reached for a container a later step needs) and **wrong hand** (a
+  left/right step done with the other hand), the errors that actually spoil a protocol.
+- **Up and down do not exist for it.** Every posture is measured against the body's own axis by
+  canonicalising the input frame, not rotating the output. A crew member floating upside down raises
+  a hand exactly as one standing does, which directly answers the brief's optional orientation
+  requirement that most solutions skip.
+- **Experiments are files, not code.** A new protocol is a new YAML file built in a no-code builder,
+  never an engine change, so the system covers any experiment ISRO runs without re-engineering.
+- **The record proves itself.** Telemetry is hash-chained with SHA-256 and re-verified in the
+  Archive, which names the exact record if a single byte ever changed: tamper-evident evidence the
+  ground can trust.
+
+### Feasible
+
+- **It runs today, on a laptop CPU, live on a webcam** with small YOLO11n models at 416 resolution.
+  This is a working system, not a concept deck.
+- **Genuinely offline, by architecture.** No cloud inference, no hosted voice, no CDN, no telemetry
+  upload, and a test in CI enforces it. That matches the real BAS constraint of delayed comms and
+  scarce bandwidth instead of assuming a link that will not be there.
+- **It respects the bandwidth it is given.** A run's log is a few kilobytes of structured JSONL sent
+  to the ground in place of raw video, so supervision survives on a trickle of downlink.
+- **Engineered to ship.** 518 tests, a golden replay corpus, ruff, an import-boundary contract and
+  the offline guard all green in GitHub Actions, with a clean export path to a Jetson edge device.
+
+### Why it wins
+
+- **A clean seam de-risks the whole thing.** Perception and reasoning never import each other and
+  talk only over an event bus (enforced by import-linter), so the reasoning layer is tested with no
+  camera and no model, and a recorded run can be replayed if a camera ever fails in front of a jury.
+  The demo cannot be derailed by hardware.
+- **Honest, offline and config-driven is the combination the mission needs.** Trustworthy verdicts,
+  no dependence on a link that is not there, and one engine that scales to every future experiment
+  is a better fit for an on-board assistant than a cloud-dependent, single-experiment, always-confident
+  model, however accurate that model looks in a lab.
 
 ---
 
-## Quick start
+## See it run
 
-**You need:** Python **3.11**, Node.js **20.19+** and a webcam.
-
-**1. Install.** With [uv](https://docs.astral.sh/uv/) (recommended):
+**You need:** Python **3.11**, Node.js **20.19+**, and a webcam. Everything else installs locally;
+nothing is fetched from a cloud at run time.
 
 ```bash
+# 1. Install (uv recommended; requirements.txt also works inside a 3.11 venv)
 uv sync --all-extras --group dev
-```
 
-or with pip, inside a Python 3.11 virtual environment:
+# 2. Build the dashboard once
+cd ui && npm install && npm run build && cd ..
 
-```bash
-pip install -r requirements.txt
-```
-
-[`requirements.txt`](requirements.txt) pins the exact versions the test suite passes with and
-installs SARTHI itself.
-
-**2. Build the dashboard** (once):
-
-```bash
-cd ui && npm install && npm run build
-```
-
-**3. Add the voice** (once, about 60 MB, optional but it is how alerts are meant to be heard):
-
-```bash
+# 3. Add the on-device voice once (about 60 MB, optional but it is how alerts are meant to be heard)
 uv run python -m piper.download_voices en_US-lessac-medium --data-dir models/voices
-```
 
-**4. Run:**
-
-```bash
+# 4. Run
 uv run python scripts/web_demo.py
 ```
 
-Open **http://localhost:8000**. The detector and pose weights download by themselves on the first
-run; after that nothing touches the network.
+Open **http://localhost:8000**. The detector and pose weights download themselves on the first run
+only; after that nothing touches the network.
+
+> **60-second tour for evaluators:** Procedures → *Built-in* → **Crew fitness and hydration check** →
+> **Load**. Mission → **New run**. Follow the spoken steps, then deliberately use the wrong hand and
+> hear the alert fire. End the run and open **Archive** → **Verify chain** to see the log prove it
+> was never altered. No training, no network, no setup beyond the four commands above.
 
 <details>
 <summary><b>Launcher options</b></summary>
@@ -142,17 +167,48 @@ run; after that nothing touches the network.
 
 ---
 
+## Features
+
+| | |
+|---|---|
+| **Human activity recognition** | 13 body actions read from the skeleton: 9 postures and 4 movements (wave, lift, lower, clap). One-hand actions can require the **left or right** hand. |
+| **Hand and object interaction** | Knows which hand touches which object, and what is done with it: **show, hold, pour, move**, or put it back in its place. |
+| **Objects** | 80 everyday objects out of the box, several at once. Teach it your own objects or object states (cap on, cap off) from photos or a short video, no box drawing. A solid-coloured block, like a blue cube, is found by its colour with no training at all. |
+| **Orientation-agnostic** | Every posture is measured against the body's own axis, so a crew member upside down raises a hand exactly as one standing does. |
+| **Step-by-step supervision** | Steps are judged in order with confidence thresholds. The system says *cannot verify* rather than guess. |
+| **Spoken alerts** | Wrong object, wrong hand, skipped step, out of sequence, no progress, cannot verify. |
+| **Experiments are files** | Every experiment is a YAML procedure. Build one in the no-code builder, save it by name, run it again any time. |
+| **Tamper-evident record** | Hash-chained telemetry. The Archive re-verifies it and names the exact record if a single byte changed. |
+| **Offline and edge-ready** | No cloud, no telemetry upload, no CDN. A test guards it. Runs on a laptop CPU, with an export path to a Jetson. |
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/procedures.png" alt="Procedures: saved experiments, built-in library and the builder" /></td>
+    <td width="50%"><img src="docs/images/models.png" alt="Models: teach SARTHI new objects in five stages" /></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Procedures</b> &nbsp;·&nbsp; build, save and run experiments</td>
+    <td align="center"><b>Models</b> &nbsp;·&nbsp; teach new objects on the device</td>
+  </tr>
+</table>
+
+---
+
 ## Guide
 
-### Run an experiment
+<details>
+<summary><b>Run an experiment</b></summary>
 
 1. **Procedures** tab → *Built-in* → pick an experiment → **Load**.
 2. **Mission** tab → choose **Clean** (a step done early counts, and the one you skipped is alerted) or **Strict** (a step done early is held out of sequence) → **New run**.
 3. Follow the voice. An alert covers the top of the video until you press **Acknowledge** (or `Esc`).
-4. At the end a debrief shows every step with its timing; **End run** releases the camera.
+4. At the end a debrief shows every step with its timing. **End run** releases the camera.
 5. **Archive** tab → the run → its steps, alerts, video and **Verify chain**.
 
-### Build your own
+</details>
+
+<details>
+<summary><b>Build your own, no code</b></summary>
 
 1. **Procedures** → *Build an experiment* → give it a name.
 2. Add steps from **Objects** (80 stock, plus yours listed first) or **Body actions**.
@@ -160,7 +216,10 @@ run; after that nothing touches the network.
    (Either, Left, Right). Leave the wording empty to use the default shown in grey.
 4. **Save** puts it under *Your experiments*, kept across restarts. **Save & run** starts it now.
 
-### Teach it a new object
+</details>
+
+<details>
+<summary><b>Teach it a new object</b></summary>
 
 1. **Models** → type the object's name → **+**. Keep the **background** class.
 2. Capture **40 to 60 photos** per object or state, in the room you will run in: different
@@ -170,17 +229,19 @@ run; after that nothing touches the network.
    detector** (about 15 minutes on a laptop).
 4. **Test model** live → **Deploy**. Your object joins the 80 stock ones and stays after a restart.
 
+</details>
+
 ### Built-in experiments
 
 | Experiment | What it shows | Training |
 |---|---|---|
-| **Sample transfer at the bench** | The problem statement's sample experiment, worked naturally at a bench: red and yellow boxes out onto their zones, the sample moved across, both stowed. Nothing held up to the camera; objects found by colour | none |
+| **Sample transfer at the bench** | The problem statement's sample experiment, worked naturally at a bench: red and yellow boxes out onto their zones, the sample moved across, both stowed. Objects found by colour. | none |
 | **Seed germination check** | ISRO's Axiom-4 sprouting experiment: tray out, water, photograph, return to the growth chamber | none |
-| **Crew fitness and hydration check** | Left and right hand steps, a wave, lifting the bottle while holding it; the wrong-hand alert | none |
-| **Potable water sampling** | Two objects in one step; the wrong-object alert | none |
-| **Drink water** | Pick up, open, drink, close, put back. A body-only version and a trained cap-state version | optional |
-| **Blue cube from A to B** | Pick the cube up from position A with the right hand, place it on B. Found by colour | none |
-| **Nested sample retrieval (PROC-A)** | The problem statement's own example on a marked payload rack | props + model |
+| **Crew fitness and hydration check** | Left and right hand steps, a wave, lifting the bottle while holding it. Shows the wrong-hand alert. | none |
+| **Potable water sampling** | Two objects in one step. Shows the wrong-object alert. | none |
+| **Drink water** | Pick up, open, drink, close, put back. A body-only version and a trained cap-state version. | optional |
+| **Blue cube from A to B** | Pick the cube up from position A with the right hand, place it on B. Found by colour. | none |
+| **Nested sample retrieval (PROC-A)** | The problem statement's own example on a marked payload rack. | props + model |
 
 The **[experiment catalogue (PDF)](docs/experiments/SARTHI-Experiment-Catalogue.pdf)** describes
 21 experiments, 14 for a space station and 7 on Earth, each with its props, every step, what
@@ -193,8 +254,8 @@ SARTHI checks and the exact builder settings.
 | Raise a hand · Hand to face · Hand on head · Reach out | Both hands up · Hands together · Arms crossed · Arms out · Hands on hips | Wave · Lift · Lower · Clap |
 
 Hold each action for about a second and keep both elbows in view. Holds are timed in seconds, not
-frames, so a slower laptop does not make you hold longer. Movements are read from frame to frame,
-so on a laptop make them slow and wide.
+frames, so a slower laptop does not make you hold longer. Movements are read frame to frame, so on a
+laptop make them slow and wide.
 
 ### Alerts
 
@@ -206,24 +267,6 @@ so on a laptop make them slow and wide.
 | **Wrong hand** | The other hand does a left or right step | always |
 | **No progress** | A step is left undone for its time limit | always |
 | **Cannot verify** | The evidence is too weak to trust | always |
-
----
-
-## Tech stack
-
-| Layer | Technology |
-|---|---|
-| **Language and runtime** | Python 3.11 · [uv](https://docs.astral.sh/uv/) |
-| **Object detection** | Ultralytics **YOLO11n** (COCO-80) · on-device fine-tuning for your own objects |
-| **Human pose and activity** | **YOLO11n-pose** (17 keypoints) · body-frame gesture reader · hand-object contact inference |
-| **Rack localisation** | OpenCV **ArUco** markers and homography to rack millimetres |
-| **Reasoning** | Pydantic procedure schema · pure predicate functions · step state machine with calibrated abstention |
-| **Server** | **FastAPI** · Uvicorn · WebSocket live state · MJPEG video |
-| **Storage and integrity** | SQLite with migrations · JSONL telemetry chained with **SHA-256** |
-| **Voice** | **Piper** text to speech, on device, pre-rendered prompts |
-| **Video** | OpenCV mp4 recording · FFmpeg RTSP publishing |
-| **Dashboard** | **React 19** · TypeScript · Vite · Lucide icons · Geist font bundled |
-| **Quality** | pytest (518 tests, golden replay corpus) · ruff · import-linter · oxlint · GitHub Actions |
 
 ---
 
@@ -249,12 +292,12 @@ flowchart LR
 ```
 
 **The event bus is the seam.** Perception publishes what it sees and knows nothing about
-experiments; the engine judges steps and knows nothing about cameras or models. An
-import-linter contract enforces the split, which is why the whole reasoning layer is tested
-without a camera, and why a recorded run can be replayed if a camera fails in front of a jury.
+experiments. The engine judges steps and knows nothing about cameras or models. An import-linter
+contract enforces the split, which is why the whole reasoning layer is tested without a camera, and
+why a recorded run can be replayed if a camera ever fails in front of a jury.
 
-**Experiments are configuration, never code.** A new experiment is a new YAML file; the engine
-does not change.
+**Experiments are configuration, never code.** A new experiment is a new YAML file. The engine does
+not change.
 
 <details>
 <summary><b>How a step is judged</b></summary>
@@ -271,9 +314,7 @@ does not change.
 
 </details>
 
----
-
-## Project structure
+### Project structure
 
 ```
 Clippy/
@@ -293,8 +334,26 @@ Clippy/
 └── requirements.txt    pinned install for pip
 ```
 
-The Python package is still named `orbital_har`, the project's earlier working title. The product
-is **SARTHI**.
+The Python package is still named `orbital_har`, the project's earlier working title. The product is
+**SARTHI**.
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| **Language and runtime** | Python 3.11 · [uv](https://docs.astral.sh/uv/) |
+| **Object detection** | Ultralytics **YOLO11n** (COCO-80) · on-device fine-tuning for your own objects |
+| **Human pose and activity** | **YOLO11n-pose** (17 keypoints) · body-frame gesture reader · hand-object contact inference |
+| **Rack localisation** | OpenCV **ArUco** markers and homography to rack millimetres |
+| **Reasoning** | Pydantic procedure schema · pure predicate functions · step state machine with calibrated abstention |
+| **Server** | **FastAPI** · Uvicorn · WebSocket live state · MJPEG video |
+| **Storage and integrity** | SQLite with migrations · JSONL telemetry chained with **SHA-256** |
+| **Voice** | **Piper** text to speech, on device, pre-rendered prompts |
+| **Video** | OpenCV mp4 recording · FFmpeg RTSP publishing |
+| **Dashboard** | **React 19** · TypeScript · Vite · Lucide icons · Geist font bundled |
+| **Quality** | pytest (518 tests, golden replay corpus) · ruff · import-linter · oxlint · GitHub Actions |
 
 ---
 
@@ -307,16 +366,17 @@ uv run lint-imports            # perception and reasoning never import each othe
 uv run orbital-har demo proc_a_skip_s4    # replay a recorded run with a skipped step
 ```
 
-The **golden replay corpus** holds scripted runs with the verdicts the engine must reach:
-clean runs, a skip, weak evidence, lost rack markers, a stall, and a step done out of
-sequence then recovered. Each is replayed as the live console would judge it, with no
-camera and no model. `uv run orbital-har eval` scores the engine on it.
+The **golden replay corpus** holds scripted runs with the verdicts the engine must reach: clean runs,
+a skip, weak evidence, lost rack markers, a stall, and a step done out of sequence then recovered.
+Each is replayed as the live console would judge it, with no camera and no model.
+`uv run orbital-har eval` scores the engine on it: **38/38 verdicts, 4/4 alerts, 0 false alerts per
+10 minutes.** Those are scripted cases, so they prove the reasoning, not the camera.
 
 <details>
 <summary><b>Training the payload-prop detector</b></summary>
 
-The dataset pipeline for the problem statement's sample experiment is built; it needs footage of
-the props. See the [dataset guide](docs/07-DATASET-GUIDE.md).
+The dataset pipeline for the problem statement's sample experiment is built; it needs footage of the
+props. See the [dataset guide](docs/07-DATASET-GUIDE.md).
 
 ```bash
 uv run orbital-har dataset init  --root datasets/bas
@@ -328,8 +388,8 @@ uv run orbital-har eval   --weights runs/bas/weights/best.pt --save
 uv run orbital-har export runs/bas/weights/best.pt --format onnx
 ```
 
-Classes come from the procedure YAML, never hardcoded, and training augments rotation to ±180°
-because there is no floor in orbit.
+Classes come from the procedure YAML, never hardcoded, and training augments rotation to plus or
+minus 180 degrees because there is no floor in orbit.
 
 </details>
 
@@ -354,15 +414,16 @@ because there is no floor in orbit.
 ## Status
 
 **Working today:** live supervision on a webcam, 13 body actions with left and right hands,
-wrong-object and wrong-hand alerts, the no-code builder with saved experiments, on-device
-training, the tamper-evident record, local video and RTSP, and the full dashboard.
+wrong-object and wrong-hand alerts, the no-code builder with saved experiments, on-device training,
+the tamper-evident record, local video and RTSP, and the full dashboard. 518 tests pass; ruff, the
+import-boundary contract and the offline guard are all green.
 
-**Next:** a model trained on the physical props of the problem statement's sample experiment,
-export to a Jetson edge device, and full 3D body-mesh recovery (optional in the brief).
+**Next:** a model trained on the physical props of the problem statement's sample experiment, export
+to a Jetson edge device, and full 3D body-mesh recovery (optional in the brief).
 
 <div align="center">
 <br />
 
-Built by **Team Hashira** for **Smart India Hackathon 2026** · Problem Statement SIH26174 · ISRO
+Built by **Team Hashira** for **Smart India Hackathon 2026** &nbsp;·&nbsp; Problem Statement SIH26174 &nbsp;·&nbsp; ISRO
 
 </div>

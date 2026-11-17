@@ -140,8 +140,7 @@ uv run python -m piper.download_voices en_US-lessac-medium --data-dir models/voi
 uv run python scripts/web_demo.py
 ```
 
-Open **http://localhost:8000**. The detector and pose weights download themselves on the first run
-only; after that nothing touches the network.
+Open **http://localhost:8000**. An internet connection is required on the first run to download the detector and pose weights. Once downloaded, SARTHI runs fully offline without requiring an internet connection.
 
 > **60-second tour for evaluators:** Procedures → *Built-in* → **Crew fitness and hydration check** →
 > **Load**. Mission → **New run**. Follow the spoken steps, then deliberately use the wrong hand and
